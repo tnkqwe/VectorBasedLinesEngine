@@ -6,41 +6,74 @@ using System.Threading.Tasks;
 
 namespace VectorBasedLinesEngine
 {
-    
     class Basis
     {
-        private DoublePair _c;
-        private DoublePair _x;
-        private DoublePair _y;
+        private DoublePair c;
+        public Point center
+        {
+            get { return new Point(c.a, c.b); }
+            set
+            {
+                c.a = value.x;
+                c.b = value.y;
+                calcOXlen();
+                calcOYlen();
+            }
+        }
+        private DoublePair x;
+        public Point xVector
+        {
+            get { return new Point(x.a, x.b); }
+            set
+            {
+                x.a = value.x;
+                x.b = value.y;
+                calcOXlen();
+            }
+        }
+        private DoublePair y;
+        public Point yVector
+        {
+            get { return new Point(y.a, y.b); }
+            set
+            {
+                y.a = value.x;
+                y.b = value.y;
+                calcOYlen();
+            }
+        }
         private double rotation;
-        private int vectLen;
-        private double _OXlen;
-        private double _OYlen;
+        private double vectLen;
+        public double vectorLength { get { return vectLen; } }
+        public int vectorLengthInt { get { return (int)vectLen; } }
+        //private double _zoom = 1; public double zoom { get { return _zoom; } set { _zoom = value; } }
+        private double _OXlen; public double OXlen { get { calcOXlen(); return _OXlen; } }
+        private double _OYlen; public double OYlen { get { calcOYlen(); return _OYlen; } }
         private void setStuff(double cx, double cy, double xx, double xy, double yx, double yy)
         {
-            _c = new DoublePair(cx, cy);
-            _x = new DoublePair(xx, xy);
-            _y = new DoublePair(yx, yy);
+            c = new DoublePair(cx, cy);
+            x = new DoublePair(xx, xy);
+            y = new DoublePair(yx, yy);
             //calcOXlen();
             //calcOYlen();
             rotation = 0;
-            vectLen = (int)System.Math.Sqrt((cx - xx) * (cx - xx) + (cy - xy) * (cy - xy));
+            vectLen = System.Math.Sqrt((cx - xx) * (cx - xx) + (cy - xy) * (cy - xy));
         }
         private void calcOXlen()
         {
             _OXlen = System.Math.Sqrt(
-                System.Math.Pow(_x.a - _c.a, 2) +
-                System.Math.Pow(_x.b - _c.b, 2));
+                System.Math.Pow(x.a - c.a, 2) +
+                System.Math.Pow(x.b - c.b, 2));
         }
         private void calcOYlen()
         {
             _OYlen = System.Math.Sqrt(
-                System.Math.Pow(_y.a - _c.a, 2) +
-                System.Math.Pow(_y.b - _c.b, 2));
+                System.Math.Pow(y.a - c.a, 2) +
+                System.Math.Pow(y.b - c.b, 2));
         }
         public Basis(Basis b)
         {
-            setStuff(b.center().x(), b.center().y(), b.x().x(), b.x().y(), b.y().x(), b.y().y());
+            setStuff(b.center.x, b.center.y, b.xVector.x, b.xVector.y, b.yVector.x, b.yVector.y);
         }
         //public Basis(int cx, int cy, int xx, int xy, int yx, int yy) { setStuff(cx, cy, xx, xy, yx, yy); }//refer to large comment #1
         public Basis(int cx, int cy, int vl) { setStuff(cx, cy, cx + vl, cy, cx, cy + vl); }
@@ -48,17 +81,17 @@ namespace VectorBasedLinesEngine
         {
             setStuff(0, 0, 0, 0, 0, 0);
         }
-        private void setPoint(DoublePair p, double x, double y)
-        {
-            p.a = x;
-            p.b = y;
-        }
-        public void setCenter(double x, double y) { setPoint(_c, x, y); }
-        public void setCenter(DoublePair p)       { setCenter(p.a, p.b); }
-        public void setOX    (double x, double y) { setPoint(_x, x, y); }
-        public void setOX    (DoublePair p)       { setOX(p.a, p.b); }
-        public void setOY    (double x, double y) { setPoint(_y, x, y); }
-        public void setOY    (DoublePair p)       { setOY(p.a, p.b); }
+        //private void setPoint(DoublePair p, double x, double y)
+        //{
+        //    p.a = x;
+        //    p.b = y;
+        //}
+        //public void setCenter(double x, double y) { setPoint(_c, x, y); }
+        //public void setCenter(DoublePair p)       { setCenter(p.a, p.b); }
+        //public void setOX(double x, double y)     { setPoint(_x, x, y); }
+        //public void setOX(DoublePair p)           { setOX(p.a, p.b); }
+        //public void setOY(double x, double y)     { setPoint(_y, x, y); }
+        //public void setOY(DoublePair p)           { setOY(p.a, p.b); }
         private DoublePair rotatePoint(double x, double y, double deg, DoublePair scrCent)
         {
             double rads = 0.0174533 * deg;
@@ -69,28 +102,28 @@ namespace VectorBasedLinesEngine
         }
         private void _rotate(double deg, DoublePair scrCent)
         {
-            _c = rotatePoint(_c.a, _c.b, deg, scrCent);
-            _x = rotatePoint(_x.a, _x.b, deg, scrCent);
-            _y = rotatePoint(_y.a, _y.b, deg, scrCent);
+            c = rotatePoint(c.a, c.b, deg, scrCent);
+            x = rotatePoint(x.a, x.b, deg, scrCent);
+            y = rotatePoint(y.a, y.b, deg, scrCent);
             //change of the rotation variable is done in rotate(int, IntPair)
         }
         private void setBasisVect (DoublePair vect)
         {
-            if (System.Math.Abs(System.Math.Abs(vect.a) - System.Math.Abs(_c.a)) > System.Math.Abs(System.Math.Abs(vect.b) - System.Math.Abs(_c.b)))//vector is horisontal
+            if (System.Math.Abs(System.Math.Abs(vect.a) - System.Math.Abs(c.a)) > System.Math.Abs(System.Math.Abs(vect.b) - System.Math.Abs(c.b)))//vector is horisontal
             {
-                if (vect.a > _c.a)//points in the positive direction
-                    vect.a = _c.a + vectLen;
+                if (vect.a > c.a)//points in the positive direction
+                    vect.a = c.a + vectLen;
                 else//points in the negative direction
-                    vect.a = _c.a - vectLen;
-                vect.b = _c.b;
+                    vect.a = c.a - vectLen;
+                vect.b = c.b;
             }
             else//vector is now vertical
             {
-                if (vect.b > _c.b)//points in the positive direction
-                    vect.b = _c.b + vectLen;
+                if (vect.b > c.b)//points in the positive direction
+                    vect.b = c.b + vectLen;
                 else
-                    vect.b = _c.b - vectLen;
-                vect.a = _c.a;
+                    vect.b = c.b - vectLen;
+                vect.a = c.a;
             }
         }
         public void rotate(double deg, DoublePair scrCent)
@@ -101,45 +134,41 @@ namespace VectorBasedLinesEngine
             if ((int)rotation / 90 != (int)(rotation + deg) / 90)//it has passed through a state, where the basis is rotated at 90, 180, 270 or 360 deg
             {//rounding the values of the coordinates to avoid mistakes to add up from using double variables
                 _rotate(((rotation + deg) / 90) * 90 - rotation, scrCent);//rotate by the degrees left to reach a position of 90, 180, 270 or 360 deg
-                _c.set(System.Math.Round(_c.a), System.Math.Round(_c.b));
-                setBasisVect(_x);
-                setBasisVect(_y);
+                c.set(c.a, c.b);
+                setBasisVect(x);
+                setBasisVect(y);
                 _rotate((rotation + deg) - ((rotation + deg) / 90) * 90, scrCent);//rotate by the remaining degrees
             }
             else
                 _rotate(deg, scrCent);
             rotation += deg;
-            if (System.Math.Abs(rotation / 360) > 0)//a full circle has been made
+            if (System.Math.Abs(rotation) > 0)//a full circle has been made
             {
-                rotation = rotation - ((int)rotation / 360) * 360;
+                if (rotation > 0)
+                    rotation -= 360;
+                else//rotation < 0
+                    rotation += 360;
             }
+            if (x.a / y.a == x.b / y.b) throw new SystemException("Basis vectors have become paralel!");
         }
         public void move(double x, double y)
         {
-            _x.a += x; _y.a += x; _c.a += x;
-            _x.b += y; _y.b += y; _c.b += y;
+            this.x.a += x; this.y.a += x; c.a += x;
+            this.x.b += y; this.y.b += y; c.b += y;
         }
-        //I can also return references to the members _center, _x and _y,
-        //but I want to make sure that the lengths of the basis vectors
-        //get re-calculated each time the vectors' coordinates change
-        public Point center()
+        public Basis zoomedIn(double zoom)
         {
-            Point res = new Point((int)_c.a, (int)_c.b);
+            DoublePair zx = new DoublePair (
+                (x.a - c.a) * zoom + c.a,//x coordinate of the X vector
+                (x.b - c.b) * zoom + c.b);//y coordinate of the X vector
+            DoublePair zy = new DoublePair (
+                (y.a - c.a) * zoom + c.a,//x coordinate of the Y vector
+                (y.b - c.b) * zoom + c.b);//y coordinate of the Y vector
+            Basis res = new Basis(this);
+            res.xVector = zx;
+            res.yVector = zy;
             return res;
         }
-        public Point x()
-        {
-            Point res = new Point((int)_x.a, (int)_x.b);
-            return res;
-        }
-        public Point y()
-        {
-            Point res = new Point((int)_y.a, (int)_y.b);
-            return res;
-        }
-        public int vectorLength() { return vectLen; }
-        public double OXlen() { calcOXlen(); return _OXlen; }//length of the OX vector
-        public double OYlen() { calcOYlen(); return _OYlen; }//length of the OY vector
     }
 }
 

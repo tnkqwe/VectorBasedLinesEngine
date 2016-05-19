@@ -16,25 +16,239 @@ namespace VectorBasedLinesEngine
         Plane plane;
         System.Drawing.Graphics gfx;
         System.Drawing.Bitmap buffer;
-        System.Drawing.Graphics screenDraw;
-        System.Drawing.Bitmap scrDrawBuffer;
+        //System.Drawing.Graphics screenDraw;
+        //System.Drawing.Bitmap scrDrawBuffer;
+        bool isAntiAlias = false;
         int scrHeight;
         int scrWidth;
+        int heightParts = 9;
+        int widthParts = 16;
+        int pixelsPerPart = 40;
         System.Diagnostics.Stopwatch timer;
         int fps = 60;
         public Form1()
         {
             InitializeComponent();
+            scrHeight = heightParts * pixelsPerPart;
+            scrWidth = widthParts * pixelsPerPart;
+            pictureBox1.Height = scrHeight;
+            pictureBox1.Width = scrWidth;
+            //pictureBox1.SizeMode = PictureBoxSizeMode.CenterImage;
             int cx = pictureBox1.Width / 2;//coordinates X
             int cy = pictureBox1.Height / 2;// coordinates Y
-            scrHeight = 480;
-            scrWidth = 480;
+            this.Height = scrHeight + 27;
+            this.Width = scrWidth + 8;
+            this.MinimumSize = new System.Drawing.Size(this.Width, this.Height);
             timer = new System.Diagnostics.Stopwatch();
+            plane = new Plane(5, 5, scrWidth, scrHeight, fancyCameraMovementMethod);
+            using (StreamWriter file = new StreamWriter(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
+            {//encoding the entity data
+                file.WriteLine("This is an example for an entities data file.");
+                file.WriteLine("Change the data at your responsibility!");
+                file.WriteLine("Should I cipher the text to prevent modifications?");
+                file.WriteLine("Anyway, the constructors of the base entities will ignore all lines, that do NOT start with '|',");
+                file.WriteLine("and all the text after the last '|' symbol of each line.");
+                int sectSize = ((int)System.Math.Sqrt(scrHeight * scrHeight + scrWidth * scrWidth) / 100) * 100 + 100;
+                for (int i = 0; i < 10; i++)
+                {
+                    IntPair p1c = new IntPair(sectSize / 5 + i * 100, sectSize);//coordinates
+                    IntPair p2c = new IntPair(sectSize, sectSize + i * sectSize / 5);
+                    IntPair p3c = new IntPair(sectSize - i * 70, i * 70);
+                    PointEntity pe = new PointEntity(@"\data\images\blueSquare1.png", p1c.a, p1c.b, plane);
+                    file.WriteLine(pe.dataString());
+                    pe = new PointEntity(@"\data\images\redStar.png", p2c.a, p2c.b, plane);
+                    file.WriteLine(pe.dataString());
+                    pe = new PointEntity(@"\data\images\blueStar.png", p3c.a, p3c.b, plane);
+                    file.WriteLine(pe.dataString());
+                    LineEntity le = new LineEntity(System.Drawing.Color.FromArgb(200, 255, 0, 0), p1c, p2c, plane);
+                    file.WriteLine(le.dataString());
+                    le = new LineEntity(System.Drawing.Color.FromArgb(200, 0, 255, 0), 300, 300, sectSize + i * 100, sectSize, plane);
+                    file.WriteLine(le.dataString());
+                    le = new LineEntity(System.Drawing.Color.FromArgb(200, 0, 0, 255), p3c, p1c, plane);
+                    file.WriteLine(le.dataString());
+                }
+                DoublePair[] dp = new DoublePair[6];
+                dp[0] = new DoublePair(plane.sectorSize() / 2,                          plane.sectorSize() / 2);
+                dp[1] = new DoublePair(plane.sectorSize() / 2 + 3 * plane.sectorSize(), plane.sectorSize() / 2);
+                dp[2] = new DoublePair(plane.sectorSize() / 2 + 3 * plane.sectorSize(), plane.sectorSize() / 2 + 2 * plane.sectorSize());
+                dp[3] = new DoublePair(plane.sectorSize() / 2 + 2 * plane.sectorSize(), plane.sectorSize() / 2 + 2 * plane.sectorSize());
+                dp[4] = new DoublePair(plane.sectorSize() / 2 + 2 * plane.sectorSize(), plane.sectorSize() / 2 + 3 * plane.sectorSize());
+                dp[5] = new DoublePair(plane.sectorSize() / 2, plane.sectorSize() / 2 + 3 * plane.sectorSize());
+                System.Drawing.Color[] clr = new System.Drawing.Color[4];
+                clr[0] = System.Drawing.Color.IndianRed;
+                clr[1] = System.Drawing.Color.MediumAquamarine;
+                clr[2] = System.Drawing.Color.LimeGreen;
+                clr[3] = System.Drawing.Color.Yellow;
+                PolygonEntity ple = new PolygonEntity(dp, clr, @"\data\images\randTexture.png", plane);
+                file.WriteLine(ple.dataString());
+            }
+            using (StreamReader file = new StreamReader(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
+            {
+                string crrLine = file.ReadLine();
+                while (crrLine != null)
+                {
+                    if (crrLine[0] == '|')
+                    {
+                             if (crrLine[1] == '0') plane.addEntity(new PointEntity(crrLine, plane));
+                        else if (crrLine[1] == '1') plane.addEntity(new LineEntity(crrLine, plane));
+                        else if (crrLine[1] == '2') plane.addEntity(new PolygonEntity(crrLine, plane));
+                    }
+                    crrLine = file.ReadLine();
+                }
+            }
+            plane.setEntityWithAction(0, fancyMethod00, 0);
+            plane.setEntityWithAction(3, fancyMethod01, 0);
+            //plane.addEntity(new PolygonEntity(dp, clr, Directory.GetCurrentDirectory() + @"\data\images\randTexture.png", plane));
+            //plane.command(scrWidth, scrHeight);
+            plane.enableEntityActions();
+            timer1.Enabled = true;
+            refresh();
+        }
+        public void refresh()
+        {
+            if (plane != null)
+            {
+                buffer = new Bitmap(scrWidth, scrHeight);
+                gfx = Graphics.FromImage(buffer);
+                gfx.SetClip(new Rectangle(0, 0, scrWidth, scrHeight));
+                if (isAntiAlias)
+                    gfx.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                plane.draw(gfx, new ScreenData(scrWidth, scrHeight));
+                pictureBox1.Image = buffer;
+            }
+        }
+        private void Form1_KeyDown(object sender, KeyEventArgs e)
+        {
+            //int movementSpeed = 3;
+            if (e.KeyCode == Keys.A) cw = true;
+            if (e.KeyCode == Keys.D) ccw = true;
+            if (e.KeyCode == Keys.W) up = true;
+            if (e.KeyCode == Keys.S) down = true;
+            if (e.KeyCode == Keys.Q) left = true;
+            if (e.KeyCode == Keys.E) right = true;
+            //refresh();
+        }
+        private void Form1_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.A) cw = false;
+            if (e.KeyCode == Keys.D) ccw = false;
+            if (e.KeyCode == Keys.W) up = false;
+            if (e.KeyCode == Keys.S) down = false;
+            if (e.KeyCode == Keys.Q) left = false;
+            if (e.KeyCode == Keys.E) right = false;
+        }
+        private void Form1_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == 'r')
+            {
+                if (plane.debug)
+                    plane.debug = false;
+                else
+                    plane.debug = true;
+            }
+            if (e.KeyChar == 'f')
+            {
+                if (isAntiAlias)
+                    isAntiAlias = false;
+                else
+                    isAntiAlias = true;
+            }
+            if (e.KeyChar == 'z')
+                plane.zoom += 0.02;
+            if (e.KeyChar == 'x')
+                plane.zoom -= 0.02;
+        }
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            timer.Start();
+            plane.hartMethod(new ScreenData(scrWidth, scrHeight));
+            int workTime = 1000 / fps;
+            refresh();
+            timer.Stop();
+            int sleepTime = workTime - (int)timer.ElapsedMilliseconds;
+            if (sleepTime > 0)
+                timer1.Interval = sleepTime;
+            else
+                timer1.Interval = 1;
+            label1.Text = (1000.0 / (double)((int)timer.ElapsedMilliseconds + sleepTime)) + " " + sleepTime;
+            timer.Reset();
+        }
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            plane.command("stop");
+            timer1.Enabled = false;
+        }
+        public bool up = false;
+        public bool down = false;
+        public bool left = false;
+        public bool right = false;
+        public bool cw = false;
+        public bool ccw = false;
+        private void fancyCameraMovementMethod(Plane plane)
+        {
+            if (up) plane.move(0, 2.0 / plane.zoom);//screen movement
+            if (down) plane.move(0, -2.0 / plane.zoom);
+            if (left) plane.move(2.0 / plane.zoom, 0);
+            if (right) plane.move(-2.0 / plane.zoom, 0);
+            if (cw) plane.rotate(1.0, new ScreenData(widthParts * pixelsPerPart, heightParts * pixelsPerPart));
+            if (ccw) plane.rotate(-1.0, new ScreenData(widthParts * pixelsPerPart, heightParts * pixelsPerPart));
+        }
+
+        private void fancyTestMethod0(Plane plane)
+        {
+
+        }
+        int hor1 = -1;
+        int ver1 = -1;
+        private void fancyMethod00(Plane plane, Entity e)
+        {
+            if (e.typeAsInt == 0)
+            {
+                PointEntity pe = (PointEntity)e;
+                if (pe.coordinates.x <= 100 && hor1 == -1) hor1 = 1;
+                if (pe.coordinates.y <= 100 && ver1 == -1) ver1 = 1;
+                if (pe.coordinates.x >= 500 && hor1 == 1) hor1 = -1;
+                if (pe.coordinates.y >= 1000 && ver1 == 1) ver1 = -1;
+                pe.setCoords(pe.coordinates.x + hor1 * 0.5, pe.coordinates.y + ver1 * 1);
+            }
+        }
+        int hor2 = -1;
+        int ver2 = -1;
+        int hor3 = -1;
+        int ver3 = -1;
+        private void fancyMethod01(Plane plane, Entity e)
+        {
+            if (e.typeAsInt == 1)
+            {
+                LineEntity le = (LineEntity)e;
+                if (le.lineCoords.start.x <= 700 && hor2 == -1) hor2 = 1;
+                if (le.lineCoords.start.y <= 0 && ver2 == -1) ver2 = 1;
+                if (le.lineCoords.start.x >= 1400 && hor2 == 1) hor2 = -1;
+                if (le.lineCoords.start.y >= 700 && ver2 == 1) ver2 = -1;
+                if (le.lineCoords.end.x <= 700 && hor3 == -1) hor3 = 1;
+                if (le.lineCoords.end.y <= 0 && ver3 == -1) ver3 = 1;
+                if (le.lineCoords.end.x >= 1400 && hor3 == 1) hor3 = -1;
+                if (le.lineCoords.end.y >= 700 && ver3 == 1) ver3 = -1;
+                le.setStartCoords(le.lineCoords.start.x + (double)hor2 * 2, le.lineCoords.start.y + (double)ver2 * 2);
+                le.setEndCoords(le.lineCoords.end.x + (double)hor3 * 1, le.lineCoords.end.y + (double)ver3 * 2);
+            }
+        }
+        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+        private void pictureBox1_Repainted(object sender, EventArgs e)
+        {
+            sw.Stop();
+            label2.Text = sw.ElapsedMilliseconds.ToString();
+            sw.Restart();
+        }
+    }
+}
+
+/*Old code for encoding the entity data
             List<string> coord = new List<string>();
             List<string> style = new List<string>();
             List<string> point = new List<string>();
             List<string> stdLine = new List<string>();
-            int sectSize = ((int)System.Math.Sqrt(pictureBox1.Height * pictureBox1.Height + pictureBox1.Width * pictureBox1.Width) / 100) * 100 + 100;
+            int sectSize = ((int)System.Math.Sqrt(scrHeight * scrHeight + scrWidth * scrWidth) / 100) * 100 + 100;
             for (int i = 0; i < 10; i++)
             {
                 string temp;
@@ -54,6 +268,8 @@ namespace VectorBasedLinesEngine
                 createLineEntityString(coord, p2c, p3c, style, temp, stdLine);
                 temp = '|' + "null" + '|' + "200,0,0,255" + '|';
                 createLineEntityString(coord, p3c, p1c, style, temp, stdLine);
+                //==========
+                //createPolygonEntityString();
             }
             using (StreamWriter file = new StreamWriter(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
             {
@@ -76,19 +292,11 @@ namespace VectorBasedLinesEngine
                 for (int c = 0; c < stdLine.Count; c++)//lines
                     file.WriteLine(stdLine[c] + c);
             }
-            plane = new Plane(5, 5, pictureBox1.Width, pictureBox1.Height, Directory.GetCurrentDirectory() + @"\data\entities.ed");
-            plane.setEntityWithAction(0, fancyMethod00, 0);
-            plane.setEntityWithAction(30, fancyMethod01, 0);
-            //plane.command(scrWidth, scrHeight);
-            plane.enableEntityActions();
-            timer1.Enabled = true;
-            refresh();
-        }
         private void createDotEntityString(List<string> coord, IntPair pc, List<string> style, string stl, List<string> point)
         {
             string pnt = '|' + pc.a.ToString() + '|' + pc.b.ToString() + '|';//|coorX|coorY|
             string pntstl = stl;//|img dir|color| ; more drawing style data can be added here
-            string pntdat = '|' + "point" + '|' + coord.Count.ToString() + '|' + style.Count + '|';//|entity type|ID of the coords|ID of the style|
+            string pntdat = '|' + "stdPoint" + '|' + coord.Count.ToString() + '|' + style.Count + '|';//|entity type|ID of the coords|ID of the style|
             point.Add(pntdat);
             coord.Add(pnt);
             style.Add(pntstl);
@@ -106,120 +314,4 @@ namespace VectorBasedLinesEngine
             style.Add(pntstl);
             //the vertical line is added in the end to help ignore any extra text after the needed data
         }
-        public void refresh()
-        {
-            buffer = new Bitmap(scrWidth, scrHeight);
-            gfx = Graphics.FromImage(buffer);
-            gfx.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            plane.draw(gfx, new ScreenData(480, 480));
-            int imgRes = Math.Min(pictureBox1.Width, pictureBox1.Height);
-            scrDrawBuffer = new Bitmap(imgRes, imgRes);
-            screenDraw = Graphics.FromImage(scrDrawBuffer);
-            screenDraw.DrawImage(buffer, (pictureBox1.Width - imgRes) / 2, (pictureBox1.Height - imgRes) / 2, imgRes, imgRes);
-            pictureBox1.Image = scrDrawBuffer;
-        }
-        private void pictureBox1_Click(object sender, EventArgs e)
-        {
-            refresh();
-        }
-        private void Form1_KeyDown(object sender, KeyEventArgs e)
-        {
-            //int movementSpeed = 3;
-            if (e.KeyCode == Keys.A)
-                plane.cw = true;
-            if (e.KeyCode == Keys.D)
-                plane.ccw = true;
-            if (e.KeyCode == Keys.W)
-                plane.up = true;
-            if (e.KeyCode == Keys.S)
-                plane.down = true;
-            if (e.KeyCode == Keys.Q)
-                plane.left = true;
-            if (e.KeyCode == Keys.E)
-                plane.right = true;
-            //refresh();
-        }
-        private void Form1_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.A)
-                plane.cw = false;
-            if (e.KeyCode == Keys.D)
-                plane.ccw = false;
-            if (e.KeyCode == Keys.W)
-                plane.up = false;
-            if (e.KeyCode == Keys.S)
-                plane.down = false;
-            if (e.KeyCode == Keys.Q)
-                plane.left = false;
-            if (e.KeyCode == Keys.E)
-                plane.right = false;
-        }
-        private void Form1_SizeChanged(object sender, EventArgs e)
-        {
-            int picRes = Math.Min(this.Width - 8, this.Height - 27);
-            pictureBox1.Width = picRes;
-            pictureBox1.Height = picRes;
-            System.Drawing.Point picLoc = new System.Drawing.Point((this.Width - 8 - picRes) / 2, (this.Height - 27 - picRes) / 2);
-            pictureBox1.Location = picLoc;
-            refresh();
-        }
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            //if (plane.refreshed == false)
-            //{
-            //    plane.refreshed = true;
-            //    refresh();
-            //}
-
-            plane.hartMethod(new ScreenData(scrWidth, scrHeight), timer);
-            int workTime = 1000 / fps;
-            int sleepTime = workTime - (int)(timer.ElapsedMilliseconds);
-            refresh();
-            if (sleepTime > 0)
-                timer1.Interval = sleepTime;
-            else
-                timer1.Interval = 1;
-        }
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            plane.command("stop");
-            timer1.Enabled = false;
-        }
-        int hor1 = -1;
-        int ver1 = -1;
-        private void fancyMethod00(Plane plane, Entity e)
-        {
-            if (e.type() == 'p')
-            {
-                PointEntity pe = (PointEntity)e;
-                if (pe.coordinates().x() <= 100 && hor1 == -1) hor1 = 1;
-                if (pe.coordinates().y() <= 100 && ver1 == -1) ver1 = 1;
-                if (pe.coordinates().x() >= 500 && hor1 == 1) hor1 = -1;
-                if (pe.coordinates().y() >= 1000 && ver1 == 1) ver1 = -1;
-                pe.setCoords(pe.coordinates().x() + hor1 * 0.5, pe.coordinates().y() + ver1 * 1);
-            }
-        }
-        int hor2 = -1;
-        int ver2 = -1;
-        int hor3 = -1;
-        int ver3 = -1;
-        private void fancyMethod01(Plane plane, Entity e)
-        {
-            if (e.type() == 'l')
-            {
-                LineEntity le = (LineEntity)e;
-                if (le.getLineCoords().start().x() <= 700 && hor2 == -1) hor2 = 1;
-                if (le.getLineCoords().start().y() <= 0 && ver2 == -1) ver2 = 1;
-                if (le.getLineCoords().start().x() >= 1400 && hor2 == 1) hor2 = -1;
-                if (le.getLineCoords().start().y() >= 700 && ver2 == 1) ver2 = -1;
-                if (le.getLineCoords().end().x() <= 700 && hor3 == -1) hor3 = 1;
-                if (le.getLineCoords().end().y() <= 0 && ver3 == -1) ver3 = 1;
-                if (le.getLineCoords().end().x() >= 1400 && hor3 == 1) hor3 = -1;
-                if (le.getLineCoords().end().y() >= 700 && ver3 == 1) ver3 = -1;
-                le.setStartCoords(le.getLineCoords().start().x() + (double)hor2 * 2, le.getLineCoords().start().y() + (double)ver2 * 2);
-                le.setEndCoords(le.getLineCoords().end().x() + (double)hor3 * 1, le.getLineCoords().end().y() + (double)ver3 * 2);
-            }
-        }
-    }
-}
-
+ */

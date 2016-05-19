@@ -26,53 +26,67 @@ namespace VectorBasedLinesEngine
             _x = p.a;
             _y = p.b;
         }
-        public double x() { return _x; }
-        public double y() { return _y; }
-        public void setx(double x) { _x = x; }
-        public void sety(double y) { _y = y; }
+        public double x {
+            get { return _x; }
+            set { _x = value; } }
+        public double y {
+            get { return _y; }
+            set { _y = value; } }
+        //public void setx(double x) { _x = x; }
+        //public void sety(double y) { _y = y; }
         public void setCoords(double x, double y) { _x = x; _y = y; }
-        public DoublePair accurateScreenCoords(Basis planeBasis)
+        public DoublePair doubleCoords { get { return new DoublePair(_x, _y); } set { _x = value.a; _y = value.b; } }
+        public IntPair intCoords { get { return new IntPair((int)System.Math.Round(_x), (int)System.Math.Round(_y)); } }
+        public DoublePair doubleScrCoords(Basis planeBasis)
         {//coordinates of the point relative to the screen's basis
             //each dot is treated like a vector - this is how a vector's coordinates change when switching the basis
-            double OXlen = planeBasis.OXlen();
-            double OYlen = planeBasis.OYlen();
+            double OXlen = planeBasis.OXlen;
+            double OYlen = planeBasis.OYlen;
             //Refer to LARGE COMMENT #1 for explaining the divisions by OXlen and OYlen
-            double resx = (planeBasis.x().x() - planeBasis.center().x()) * _x / OXlen + (planeBasis.y().x() - planeBasis.center().x()) * _y / OYlen + planeBasis.center().x();
-            double resy = (planeBasis.x().y() - planeBasis.center().y()) * _x / OXlen + (planeBasis.y().y() - planeBasis.center().y()) * _y / OYlen + planeBasis.center().y();
+            double resx = (planeBasis.xVector.x - planeBasis.center.x) * _x / OXlen + (planeBasis.yVector.x - planeBasis.center.x) * _y / OYlen + planeBasis.center.x;
+            double resy = (planeBasis.xVector.y - planeBasis.center.y) * _x / OXlen + (planeBasis.yVector.y - planeBasis.center.y) * _y / OYlen + planeBasis.center.y;
             return new DoublePair((int)resx, (int)resy);
         }
-        public IntPair screenCoords(Basis planeBasis)
+        public IntPair intScrCoords(Basis planeBasis)
         {
-            DoublePair res = accurateScreenCoords(planeBasis);
+            DoublePair res = doubleScrCoords(planeBasis);
             return new IntPair((int)res.a, (int)res.b);
         }
-        public IntPair planeCoords(Basis planeBasis)
-        {//the coordinates of the point relative to the plane's basis
-            DoublePair res = realPlaneCoords(planeBasis);
-            return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
-        }
-        public DoublePair realPlaneCoords(Basis planeBasis)
+        public DoublePair dobulePlaneCoords(Basis planeBasis)
         {
-            DoublePair x = new DoublePair(planeBasis.x().x(), planeBasis.x().y());//X basis vector
-            DoublePair y = new DoublePair(planeBasis.y().x(), planeBasis.y().y());//Y basis vector
-            DoublePair c = new DoublePair(planeBasis.center().x(), planeBasis.center().y());//center
-            double ox1 = (x.a - c.a) / planeBasis.OXlen();
-            double oy1 = (x.b - c.b) / planeBasis.OXlen();
-            double ox2 = (y.a - c.a) / planeBasis.OYlen();
-            double oy2 = (y.b - c.b) / planeBasis.OYlen();
+            DoublePair x = new DoublePair(planeBasis.xVector.x, planeBasis.xVector.y);//X basis vector
+            DoublePair y = new DoublePair(planeBasis.yVector.x, planeBasis.yVector.y);//Y basis vector
+            DoublePair c = new DoublePair(planeBasis.center.x, planeBasis.center.y);//center
+            double ox1 = (x.a - c.a) / planeBasis.OXlen;
+            double oy1 = (x.b - c.b) / planeBasis.OXlen;
+            double ox2 = (y.a - c.a) / planeBasis.OYlen;
+            double oy2 = (y.b - c.b) / planeBasis.OYlen;
             double resx;
             double resy;
             if (ox2 == 0.0)
             {
+                if (ox1 == 0.0 || oy2 == 0) throw new DivideByZeroException("A value has become zero.");
                 resx = (_x - c.a) / ox1;
                 resy = (ox1 * (_y - c.b) + oy1 * (c.a - _x)) / (ox1 * oy2);
             }
             else
             {
+                if (ox2 * oy1 - ox1 * oy2 == 0.0 || ox2 == 0) throw new DivideByZeroException("A value has become zero.");
                 resx = (ox2 * (_y - c.b) + oy2 * (c.a - _x)) / (ox2 * oy1 - ox1 * oy2);
                 resy = (_x - c.a - ox1 * resx) / ox2;
             }
             return new DoublePair(resx, resy);
+        }
+        public IntPair intPlaneCoords(Basis planeBasis)
+        {//the coordinates of the point relative to the plane's basis
+            DoublePair res = dobulePlaneCoords(planeBasis);
+            return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
+        }
+        public DoublePair zoomedCoords(Point center, double zoom)
+        {
+            return new DoublePair(
+                (_x - center.x) * zoom + center.x,
+                (_y - center.y) * zoom + center.y);
         }
         public bool isInLine(double[] ln)
         {
@@ -95,25 +109,42 @@ namespace VectorBasedLinesEngine
         public Line() { setStuff(0, 0, 0, 0); }
         public Line(double stx, double sty, double enx, double eny) { setStuff(stx, sty, enx, eny); }
         public Line(DoublePair st, DoublePair en) { setStuff(st.a, st.b, en.a, en.b); }
-        public Line(Point st, Point en) { setStuff(Math.Round(st.x()), Math.Round(st.y()), Math.Round(en.x()), Math.Round(en.y())); }
+        public Line(Point st, Point en) { setStuff(Math.Round(st.x), Math.Round(st.y), Math.Round(en.x), Math.Round(en.y)); }
+        public Line(Line ln) { setStuff(ln.start.x, ln.start.y, ln.end.x, ln.end.y); }
         public void setStart(double x, double y) { st.setCoords(x, y); }
         public void setEnd(double x, double y) { en.setCoords(x, y); }
-        public Point start()
+        public Point start
         {
-            Point res = new Point(st.x(), st.y());
-            return res;
+            get
+            {
+                Point res = new Point(st.x, st.y);
+                return res;
+            }
+            set
+            {
+                st.x = value.x;
+                st.y = value.y;
+            }
         }
-        public Point end()
+        public Point end
         {
-            Point res = new Point(en.x(), en.y());
-            return res;
+            get
+            {
+                Point res = new Point(en.x, en.y);
+                return res;
+            }
+            set
+            {
+                en.x = value.x;
+                en.y = value.y;
+            }
         }
         public double[] getEquation()
         {
             double[] res = new double[3];
-            res[0] = this.end().y() - this.start().y();
-            res[1] = this.start().x() - this.end().x();
-            res[2] = this.end().x() * this.start().y() - this.end().y() * this.start().x();
+            res[0] = this.end.y - this.start.y;
+            res[1] = this.start.x - this.end.x;
+            res[2] = this.end.x * this.start.y - this.end.y * this.start.x;
             return res;
         }
         public String getEquasionString()
@@ -123,26 +154,26 @@ namespace VectorBasedLinesEngine
         }
         private bool isPointInner(double[] ln, Point point)
         {//if the point is in the half-plane, where the normal vector of the line points
-            if (point.x() * ln[0] + point.y() * ln[1] + ln[2] >= 0)
+            if (point.x * ln[0] + point.y * ln[1] + ln[2] >= 0)
                 return true;//I am also taking the case if the point belongs to the line, otherwise it causes problems when determining in which section a line's end is located
             return false;
         }
         private bool crosses(double[] lnA, Line ln, double[] lnB)
         {
             //if the ends of the points are the same
-            if ((ln.start().x() == st.x() && ln.start().y() == st.y()) ||
-                (ln.start().x() == en.x() && ln.start().y() == en.y()) ||
-                (ln.end().x() == st.x() && ln.end().y() == st.y()) ||
-                (ln.end().x() == en.x() && ln.end().y() == en.y()))
+            if ((ln.start.x == st.x && ln.start.y == st.y) ||
+                (ln.start.x == en.x && ln.start.y == en.y) ||
+                (ln.end.x == st.x && ln.end.y == st.y) ||
+                (ln.end.x == en.x && ln.end.y == en.y))
                 return true;
             //if one of the ends of one of the lines elongs to the other line
-            if (lnA[0] * ln.start().x() + lnA[1] * ln.start().y() + lnA[2] == 0 ||
-                lnA[0] * ln.end().x() + lnA[1] * ln.end().y() + lnA[2] == 0 ||
-                lnB[0] * st.x() + lnB[1] * st.y() + lnB[2] == 0 ||
-                lnB[0] * en.x() + lnB[1] * en.y() + lnB[2] == 0)
+            if (lnA[0] * ln.start.x + lnA[1] * ln.start.y + lnA[2] == 0 ||
+                lnA[0] * ln.end.x + lnA[1] * ln.end.y + lnA[2] == 0 ||
+                lnB[0] * st.x + lnB[1] * st.y + lnB[2] == 0 ||
+                lnB[0] * en.x + lnB[1] * en.y + lnB[2] == 0)
                 return true;
             //mind the exclaimation marks!
-            if (isPointInner(lnA, ln.start()) == !isPointInner(lnA, ln.end()) &&//if the ends of the one line are on both sides of the second
+            if (isPointInner(lnA, ln.start) == !isPointInner(lnA, ln.end) &&//if the ends of the one line are on both sides of the second
                 isPointInner(lnB, st) == !isPointInner(lnB, en))//if the ends of the other line are on both sides of the first one
                 return true;//means that they are crossed
             return false;
@@ -180,7 +211,7 @@ namespace VectorBasedLinesEngine
         public Line lineToDraw(Basis basis, ScreenData screen)
         {
             if (screen.isPointInside(st) && screen.isPointInside(en))
-                return new Line(st.x(), st.y(), en.x(), en.y());
+                return new Line(st.x, st.y, en.x, en.y);
             Point stPnt = null;
             Point enPnt = null;
             Point upCrs = crossingPoint(new Line(0.0,   0.0,   700.0, 0.0));
@@ -197,19 +228,38 @@ namespace VectorBasedLinesEngine
             if (rtCrs != null && stPnt != rtCrs) enPnt = rtCrs;
             if (enPnt == null)//one end is inside
             {
-                if (screen.isPointInside(st)) return new Line(stPnt.x(), stPnt.y(), st.x(), st.y());
-                if (screen.isPointInside(en)) return new Line(stPnt.x(), stPnt.y(), en.x(), en.y());
+                if (screen.isPointInside(st)) return new Line(stPnt.x, stPnt.y, st.x, st.y);
+                if (screen.isPointInside(en)) return new Line(stPnt.x, stPnt.y, en.x, en.y);
             }
-            return new Line(stPnt.x(), stPnt.y(), enPnt.x(), enPnt.y());
+            return new Line(stPnt.x, stPnt.y, enPnt.x, enPnt.y);
         }
     }
-    class IntPair
+    class IntPair : IComparable
     {
         public int a;
         public int b;
         public IntPair() { a = 0; b = 0; }
         public IntPair(int a, int b) { this.a = a; this.b = b; }
+        public IntPair(double a, double b) { this.a = (int)a; this.b = (int)b; }
         public IntPair(IntPair ip) { a = ip.a; b = ip.b; }
+        public static implicit operator DoublePair(IntPair ip) { return new DoublePair(ip.a, ip.b); }
+        public static implicit operator Point(IntPair ip) { return new Point(ip.a, ip.b); }
+        public static IntPair operator /(IntPair dp, double d)
+        {
+            return new IntPair((double)(dp.a) / d, (double)(dp.b) / d);
+        }
+        public int CompareTo(object obj)
+        {
+            if (obj as IntPair == null || obj == null)
+                throw new ArgumentException("Invalid argument: must be non null IntPair.");
+            IntPair ip = obj as IntPair;
+            if (this.a != ip.a && this.b != ip.b)
+                return 1;
+            if (this.a == ip.a && this.b == ip.b)
+                return 0;
+            else
+                return -1;
+        }
     }
     class DoublePair
     {
@@ -218,6 +268,11 @@ namespace VectorBasedLinesEngine
         public DoublePair() { set(0, 0); }
         public DoublePair(double a, double b) { set(a, b); }
         public DoublePair(DoublePair ip) { set(ip.a, ip.b); }
+        public static implicit operator Point(DoublePair dp) { return new Point(dp.a, dp.b); }
+        public static DoublePair operator / (DoublePair dp, double d)
+        {
+            return new DoublePair(dp.a / d, dp.b / d);
+        }
         public void set(double a, double b)
         {
             this.a = a;
@@ -233,34 +288,48 @@ namespace VectorBasedLinesEngine
             _width = w;
             _height = h;
         }
-        public int width() { return _width; }
-        public int height() { return _height; }
-        public Point center() { return new Point(_width / 2, _height / 2); }
-        public Point upLeftCorner() { return new Point(0, 0); }
-        public Point upRightCorner() { return new Point(_width, 0); }
-        public Point downLeftCorner() { return new Point(0, _height); }
-        public Point downRightCorner() { return new Point(_width, _height); }
+        public int width { get { return _width; } set { _width = value; } }
+        public int height { get { return _height; } set { _height = value; } }
+        public Point center { get { return new Point(_width / 2, _height / 2); } }
+        public Point upLeftCorner { get {  return new Point(0, 0); } }
+        public Point upRightCorner { get {  return new Point(_width, 0); } }
+        public Point downLeftCorner { get {  return new Point(0, _height); } }
+        public Point downRightCorner { get { return new Point(_width, _height); } }
+        public Line upperSide { get { return new Line(0, 0, _width, 0); } }
+        public Line bottomSide { get { return new Line(0, _height, _width, _height); } }
+        public Line leftSide { get { return new Line(0, 0, 0, _height); } }
+        public Line rightSide { get { return new Line(_width, 0, _width, _height); } }
         public bool isPointInside(Point p)
         {
-            return p.x() >= 0 && p.x() <= _width &&
-                   p.y() >= 0 && p.y() <= _height;
+            return p.x >= 0 && p.x <= _width &&
+                   p.y >= 0 && p.y <= _height;
         }
         public bool isPointInside(int x, int y)
         {
             return isPointInside(new Point(x, y));
         }
+        public void changeSize(int w, int h)
+        {
+            _width = w;
+            _height = h;
+        }
+        public void changeSize(IntPair ip)
+        {
+            _width = ip.a;
+            _height = ip.b;
+        }
     }
-    class PointMovementData
-    {
-        public int dir;
-        public int limX;
-        public int limY;
-    }
-    class LineMovementData
-    {
-        public PointMovementData start;
-        public PointMovementData end;
-    }
+    //class PointMovementData
+    //{
+    //    public int dir;
+    //    public int limX;
+    //    public int limY;
+    //}
+    //class LineMovementData
+    //{
+    //    public PointMovementData start;
+    //    public PointMovementData end;
+    //}
 }
 
 /*LARGE COMMENT #1

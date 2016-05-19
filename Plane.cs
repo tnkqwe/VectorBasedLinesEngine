@@ -7,36 +7,57 @@ using System.IO;
 
 namespace VectorBasedLinesEngine
 {
+    delegate void GenericMethod(Plane plane);
     class Plane
     {
         private Basis basis;//basis
         private int sectRows;//section rows
         private int sectCols;//section colums
         private int sectSize;//width and height of each sector
+        private double _zoom;
+        private double minZoom = 0.5;
+        private double maxZoom = 2.0;
+        public double zoom
+        {
+            get { return _zoom; }
+            set
+            {
+                if (value >= minZoom && value <= maxZoom)
+                    _zoom = value;
+            }
+        }
         //Refer to Large Comment #1 for more info on the sections
         private List<List<SortedSet<int>>> entInd;//[sector row][sector column]
         private List<Entity> _entity;
-        //public delegate void Action(Plane plane, Entity e, System.Threading.AutoResetEvent block, ref bool stopAction);//daclared in Entities.cs
-        private System.Threading.Thread hart;
+        //private System.Threading.Thread hart;//because the WinForm forms can be manipulated only from the main thread, the hart must be called by a timer in the game's code
         private List<System.Threading.AutoResetEvent> block;
         private Object entLock;
+        private bool hartStopped = false;
+        //System.Diagnostics.Stopwatch timer;
         //private bool stopHart;
-        private int fps;
-        public bool refreshed;
-        private bool debug = false;
-        public bool up = false;
-        public bool down = false;
-        public bool left = false;
-        public bool right = false;
-        public bool cw = false;
-        public bool ccw = false;
-        //the basis' center coordinates are relative to the basis of the screen's upper left corner
-        private void setStuff(Basis b, int sc, int sr, int scrWd, int scrHt, string entData)
+        //private int fps;//for now the FPS is set in the code for the form
+        //public bool refreshed;
+        public bool debug = false;
+        private GenericMethod movement;//a method for the "camera" movement - the movement of the basis relative to the screen
+        private List<GenericMethod> method;
+        private System.Threading.AutoResetEvent movementBlock;//works in a ceperate thread to give more flexibility
+        private System.Threading.Thread moveThread;
+        private void moveCycle()
         {
-            basis = b;
+            while (hartStopped == false)
+            {
+                movement(this);
+                movementBlock.WaitOne();
+            }
+        }
+        //the basis' center coordinates are relative to the basis of the screen's upper left corner
+        private void setStuff(int sc, int sr, int scrWd, int scrHt, GenericMethod movement)
+        {
             sectCols = sc;
             sectRows = sr;
-            sectSize = ((int)System.Math.Sqrt(scrHt * scrHt + scrWd * scrWd) / 100) * 100 + 100;
+            sectSize = ((int)(System.Math.Sqrt(Math.Pow((double)scrHt / minZoom, 2) + Math.Pow((double)scrWd / minZoom, 2))) / 100) * 100 + 100;
+            basis = new Basis(0, 0, sectSize);
+            _zoom = 1;
             _entity = new List<Entity>();
             entInd = new List<List<SortedSet<int>>>();
             for (int row = 0; row < sr; row++)
@@ -49,120 +70,25 @@ namespace VectorBasedLinesEngine
             //stopHart = false;
             block = new List<System.Threading.AutoResetEvent>();
             entLock = new Object();
-            fps = 60;
-            refreshed = false;
-            //debug = true;
+            //fps = 60;
             List<IntPair> coord = new List<IntPair>();
             List<string> imgDir = new List<string>();
             List<System.Drawing.Color> color = new List<System.Drawing.Color>();
             List<Point> point = new List<Point>();
             List<LineEntity> stdLine = new List<LineEntity>();
-            using (StreamReader file = new StreamReader(entData))
-            {//extracting the coordinates
-                string crrLine = file.ReadLine();
-                while (crrLine != null)
-                {
-                    char[] ignoreChar = { '|' };
-                    if (crrLine[0] == '|')//ignore any lines that don't start with '|'
-                    {
-                        string[] dataSect = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-                        if (dataSect[0].Equals("coordinates"))//we have reached the coordinates section
-                        {
-                            int count = Convert.ToInt32(dataSect[1]);//get how many coordinates are recorded
-                            crrLine = file.ReadLine();
-                            int i = 0;
-                            while (i < count)
-                            {
-                                if (crrLine[0] == '|')//ignore any lines that don't start with '|'
-                                {
-                                    string[] coords = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-                                    coord.Add(new IntPair(Convert.ToInt32(coords[0]), Convert.ToInt32(coords[1])));
-                                    i++;
-                                }
-                                crrLine = file.ReadLine();
-                            }
-                        }
-                        dataSect = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);//the current line has been read in the last cycle of the coordinates extraction loop
-                        if (dataSect[0].Equals("styles"))//we have reached the styles section
-                        {
-                            int count = Convert.ToInt32(dataSect[1]);//get how many styles are recorded
-                            crrLine = file.ReadLine();
-                            int i = 0;
-                            while (i < count)
-                            {
-                                if (crrLine[0] == '|')
-                                {
-                                    string[] stylePt = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-                                    imgDir.Add(stylePt[0]);//if the address is "null", later in the program the case will be handled
-                                    if (stylePt[1].Equals("null") == false)
-                                    {
-                                        string[] clr = stylePt[1].Split(',');
-                                        color.Add(System.Drawing.Color.FromArgb(
-                                            Convert.ToInt32(clr[0]),
-                                            Convert.ToInt32(clr[1]),
-                                            Convert.ToInt32(clr[2]),
-                                            Convert.ToInt32(clr[3])));
-                                    }
-                                    else
-                                        color.Add(System.Drawing.Color.FromArgb(0, 0, 0, 0));
-                                    i++;
-                                }
-                                crrLine = file.ReadLine();
-                            }
-                        }
-                        dataSect = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-                        if (dataSect[0].Equals("entites"))//we have reached the entites section
-                        {
-                            int count = Convert.ToInt32(dataSect[1]);//get how many entites are recorded
-                            crrLine = file.ReadLine();
-                            int i = 0;
-                            while (i < count && crrLine != null)//the last may be scanned here
-                            {
-                                if (crrLine[0] == '|')
-                                {
-                                    bool entProc = false;//has an entity been processed
-                                    string[] entityPt = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-                                    if (entityPt[0].Equals("point"))
-                                    {
-                                        addEntity(new PointEntity(
-                                            color[Convert.ToInt32(entityPt[2])],
-                                            imgDir[Convert.ToInt32(entityPt[2])],
-                                            coord[Convert.ToInt32(entityPt[1])], this));
-                                        entProc = true;
-                                    }
-                                    if (entityPt[0].Equals("stdLine"))
-                                    {
-                                        addEntity(new LineEntity(
-                                            imgDir[Convert.ToInt32(entityPt[3])],
-                                            color[Convert.ToInt32(entityPt[3])],
-                                            coord[Convert.ToInt32(entityPt[1])],
-                                            coord[Convert.ToInt32(entityPt[2])], this));
-                                        entProc = true;
-                                    }
-                                    if (entProc == false)
-                                    {int k = 0;}//for debugging, if a valid record with an unknown entity word has been found, use when adding new entities
-                                    crrLine = file.ReadLine();
-                                }
-                                else
-                                    crrLine = file.ReadLine();
-                            }
-                        }
-                    }
-                    else
-                        crrLine = file.ReadLine();
-                }
-            }
+            this.movement = movement;//setting the movement method
+            method = new List<GenericMethod>();
+            movementBlock = new System.Threading.AutoResetEvent(false);
+            moveThread = new System.Threading.Thread(() => moveCycle());
+            moveThread.Start();
         }
-        public Plane(int sectionCols, int sectionRows, int screenWidth, int screenHeight, string entitiesFile)
+        public Plane(int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm)
         {
-            setStuff(new Basis(0, 0, ((int)System.Math.Sqrt(screenWidth * screenWidth + screenHeight * screenHeight) / 100) * 100 + 100),
-                sectionCols, sectionRows, screenWidth, screenHeight, entitiesFile);
+            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm);
         }
-        public Plane(int basisCenterX, int basisCenterY, int sectionCols, int sectionRows, int screenWidth, int screenHeight, string entitiesFile)
+        public Plane(int basisCenterX, int basisCenterY, int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm)
         {
-            setStuff(new Basis(basisCenterX, basisCenterY,
-                ((int)System.Math.Sqrt(screenWidth * screenWidth + screenHeight * screenHeight) / 100) * 100 + 100),
-                sectionCols, sectionRows, screenWidth, screenHeight, entitiesFile);
+            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm);
         }
         public void addEntity(Entity e)
         {
@@ -185,16 +111,19 @@ namespace VectorBasedLinesEngine
         }
         public void rotate(double deg, ScreenData screen)
         {
+            //changeScreenSize(screen);
             //Refer to Large Comment #3 fo info on the stabilization
-            Point crrCent = new Point(screen.center().planeCoords(basis));//point with the screen center's current coordinates according to the plane's basis
-            DoublePair crrCentScr = crrCent.accurateScreenCoords(basis);//screen coordinates of the point according to the screen
-            basis.rotate(deg, new DoublePair(screen.center().x(), screen.center().y()));//rotating
-            DoublePair newCentScr = crrCent.accurateScreenCoords(basis);//the new screen coordinates of the point according to the screen
+            Point crrCent = new Point(screen.center.intPlaneCoords(basis));//point with the screen center's current coordinates according to the plane's basis
+            DoublePair crrCentScr = crrCent.doubleScrCoords(basis);//screen coordinates of the point according to the screen
+            basis.rotate(deg, new DoublePair(screen.center.x, screen.center.y));//rotating
+            DoublePair newCentScr = crrCent.doubleScrCoords(basis);//the new screen coordinates of the point according to the screen
             move(crrCentScr.a - newCentScr.a, crrCentScr.b - newCentScr.b);//moving with the pixels of the diversion
+            //if (basis.x().x == basis.y().x || basis.x().y == basis.y().y) throw new SystemException("Basis vectors have become the same!");
         }
         public void move(double pxx, double pxy)
         {
             basis.move(pxx, pxy);
+            //if (basis.x().x == basis.y().x || basis.x().y == basis.y().y) throw new SystemException("Basis vectors have become the same!");
         }
         private bool sectAdded(List<IntPair> sector, IntPair sect)
         {
@@ -203,12 +132,13 @@ namespace VectorBasedLinesEngine
                     return true;
             return false;
         }
-        private void addSects(List<IntPair> sector, IntPair ul, IntPair ur, IntPair dl, IntPair dr)
+        private void addSects(List<IntPair> sector, IntPair ul, IntPair ur, IntPair dl, IntPair dr, double zoom, System.Drawing.Graphics gfx)
         {
-            IntPair uls = new IntPair(ul.a / basis.vectorLength(), ul.b / basis.vectorLength());
-            IntPair urs = new IntPair(ur.a / basis.vectorLength(), ur.b / basis.vectorLength());
-            IntPair dls = new IntPair(dl.a / basis.vectorLength(), dl.b / basis.vectorLength());
-            IntPair drs = new IntPair(dr.a / basis.vectorLength(), dr.b / basis.vectorLength());
+            //int zSectSize = (int)Math.Round((double)sectSize / zoom);
+            IntPair uls = new IntPair(ul.a / sectSize, ul.b / sectSize);
+            IntPair urs = new IntPair(ur.a / sectSize, ur.b / sectSize);
+            IntPair dls = new IntPair(dl.a / sectSize, dl.b / sectSize);
+            IntPair drs = new IntPair(dr.a / sectSize, dr.b / sectSize);
             if (ul.a >= 0 && ul.b >= 0 && uls.a < sectCols && uls.b < sectRows)
                 sector.Add(uls);
             if (ur.a >= 0 && ur.b >= 0 && urs.a < sectCols && urs.b < sectRows && sectAdded(sector, urs) == false)
@@ -217,34 +147,65 @@ namespace VectorBasedLinesEngine
                 sector.Add(dls);
             if (dr.a >= 0 && dr.b >= 0 && drs.a < sectCols && drs.b < sectRows && sectAdded(sector, drs) == false)
                 sector.Add(drs);
+            if (debug)
+            {
+                Line ln0 = new Line(ul, ur); ln0 = new Line(ln0.start.intScrCoords(basis), ln0.end.intScrCoords(basis));
+                Line ln1 = new Line(ur, dr); ln1 = new Line(ln1.start.intScrCoords(basis), ln1.end.intScrCoords(basis));
+                Line ln2 = new Line(dl, dr); ln2 = new Line(ln2.start.intScrCoords(basis), ln2.end.intScrCoords(basis));
+                Line ln3 = new Line(dl, ul); ln3 = new Line(ln3.start.intScrCoords(basis), ln3.end.intScrCoords(basis));
+                System.Drawing.Pen gray = new System.Drawing.Pen(System.Drawing.Color.Gray);
+                gfx.DrawLine(gray, (int)(ln0.start.x), (int)(ln0.start.y), (int)(ln0.end.x), (int)(ln0.end.y));
+                gfx.DrawLine(gray, (int)(ln1.start.x), (int)(ln1.start.y), (int)(ln1.end.x), (int)(ln1.end.y));
+                gfx.DrawLine(gray, (int)(ln2.start.x), (int)(ln2.start.y), (int)(ln2.end.x), (int)(ln2.end.y));
+                gfx.DrawLine(gray, (int)(ln3.start.x), (int)(ln3.start.y), (int)(ln3.end.x), (int)(ln3.end.y));
+            }
         }
+        public void addMethodToHart(GenericMethod method) { this.method.Add(method); }
         public void draw(System.Drawing.Graphics gfx, ScreenData screen)
-        {//Refer to large comment #2 for info on how the algorithm detects which section the screen occupies
+        {
+            //Refer to large comment #2 for info on how the algorithm detects which section the screen occupies
             List<IntPair> sector = new List<IntPair>();//sectors the screen occupies
-            IntPair scrCent = screen.center().planeCoords(basis);//screen center's coordinates according to the plane's basis
-            IntPair scrSect = new IntPair(scrCent.a / basis.vectorLength(), scrCent.b / basis.vectorLength());//column, row; in which sector is the center of the screen located
-            IntPair meetPoint = new IntPair(//nearest point, where four sectors border
-                (int)Math.Round(Math.Round((double)scrCent.a / (double)sectSize)) * sectSize,//the coordinates of the top left corner of each
-                (int)Math.Round(Math.Round((double)scrCent.b / (double)sectSize)) * sectSize);//sector are sectCol * sectSize and sectRow * sectSize
-            Point temp = new Point(meetPoint.a, meetPoint.b);
-            Point smp = new Point(temp.screenCoords(basis));//nearest point, where four sectors border - screen coordinates
-            if (screen.isPointInside(smp))
-                addSects(sector,
-                    new IntPair(meetPoint.a - sectSize, meetPoint.b - sectSize),//up left
-                    new IntPair(meetPoint.a,            meetPoint.b - sectSize),//up right
-                    new IntPair(meetPoint.a - sectSize, meetPoint.b),//down left
-                    new IntPair(meetPoint.a,            meetPoint.b));//down right
+            IntPair scrCent = screen.center.intPlaneCoords(basis);//screen center's coordinates according to the plane's basis
+            //ScreenData zoomedScr = new ScreenData((int)(screen.width / zoom), (int)(screen.height / zoom));
+            //basis.center.zoomedCoords(scrCent, zoom);
+            //basis.center.zoomedCoords(scrCent, zoom);
+            //basis.xVector.zoomedCoords(scrCent, zoom);
+            //basis.xVector.zoomedCoords(scrCent, zoom);
+            //basis.yVector.zoomedCoords(scrCent, zoom);
+            //basis.yVector.zoomedCoords(scrCent, zoom);
+            IntPair scrSect = new IntPair(scrCent.a / basis.vectorLengthInt, scrCent.b / basis.vectorLengthInt);//column, row; in which sector is the center of the screen located
+            Point meetPoint = new Point(//nearest point, where four sectors border
+                Math.Round(Math.Round((double)scrCent.a / (double)sectSize)) * sectSize,//the coordinates of the top left corner of each
+                Math.Round(Math.Round((double)scrCent.b / (double)sectSize)) * sectSize);//sector are sectCol * sectSize and sectRow * sectSize
+            IntPair meetPointSect = new IntPair((int)(meetPoint.x) / sectSize, (int)(meetPoint.y) / sectSize);
+            meetPoint = meetPoint.zoomedCoords(scrCent, zoom);
+            if (screen.isPointInside(meetPoint.intScrCoords(basis)))
+            {
+                //addSects(sector,
+                //    new IntPair(meetPoint.x - sectSize / 2, meetPoint.y - sectSize / 2),//up left
+                //    new IntPair(meetPoint.x + sectSize / 2, meetPoint.y - sectSize / 2),//up right
+                //    new IntPair(meetPoint.x - sectSize / 2, meetPoint.y + sectSize / 2),//down left
+                //    new IntPair(meetPoint.x + sectSize / 2, meetPoint.y + sectSize / 2),//down right
+                //    zoom, gfx);
+                sector.Add(new IntPair(meetPointSect.a, meetPointSect.b));
+                if (meetPointSect.a - 1 > -1)
+                    sector.Add(new IntPair(meetPointSect.a - 1, meetPointSect.b));
+                if (meetPointSect.b - 1 > -1)
+                    sector.Add(new IntPair(meetPointSect.a, meetPointSect.b - 1));
+                if (meetPointSect.a - 1 > -1 && meetPointSect.b - 1 > -1)
+                    sector.Add(new IntPair(meetPointSect.a - 1, meetPointSect.b - 1));
+            }
             else
             {
-                Point upLt = new Point(0, 0);
-                Point upRt = new Point(screen.width(), 0);
-                Point dnLt = new Point(0, screen.height());
-                Point dnRt = new Point(screen.width(), screen.height());
-                IntPair ul = upLt.planeCoords(basis);//up left angle
-                IntPair ur = upRt.planeCoords(basis);//up right
-                IntPair dl = dnLt.planeCoords(basis);//down left
-                IntPair dr = dnRt.planeCoords(basis);//down right
-                addSects(sector, ul, ur, dl, dr);
+                Point upLt = new Point(0, 0);                        upLt = new Point(upLt.intPlaneCoords(basis)); upLt = upLt.zoomedCoords(scrCent, 1 / zoom);
+                Point upRt = new Point(screen.width, 0);             upRt = new Point(upRt.intPlaneCoords(basis)); upRt = upRt.zoomedCoords(scrCent, 1 / zoom);
+                Point dnLt = new Point(0, screen.height);            dnLt = new Point(dnLt.intPlaneCoords(basis)); dnLt = dnLt.zoomedCoords(scrCent, 1 / zoom);
+                Point dnRt = new Point(screen.width, screen.height); dnRt = new Point(dnRt.intPlaneCoords(basis)); dnRt = dnRt.zoomedCoords(scrCent, 1 / zoom);
+                IntPair ul = new IntPair(upLt.x, upLt.y);//up left angle
+                IntPair ur = new IntPair(upRt.x, upRt.y);//up right
+                IntPair dl = new IntPair(dnLt.x, dnLt.y);//down left
+                IntPair dr = new IntPair(dnRt.x, dnRt.y);//down right
+                addSects(sector, ul, ur, dl, dr, zoom, gfx);
             }
             lock (entLock)
             {
@@ -259,7 +220,8 @@ namespace VectorBasedLinesEngine
             if (debug)
             {
                 for (int i = 0; i < _entity.Count; i++)
-                    _entity[i].drawInfo(gfx, basis, screen, i);
+                    if (true/*if the entity is in the visible sections*/)
+                        _entity[i].drawInfo(gfx, basis, screen, i);
                 for (int c = 0; c < entInd.Count(); c++)
                     for (int r = 0; r < entInd[c].Count; r++)
                     {
@@ -273,14 +235,15 @@ namespace VectorBasedLinesEngine
                                 str += "\n";
                         }
                         Point pnt0 = new Point(c * sectSize + sectSize / 2, r * sectSize + sectSize / 2);
-                        pnt0.setCoords(pnt0.screenCoords(basis).a, pnt0.screenCoords(basis).b);
+                        pnt0.setCoords(pnt0.intScrCoords(basis).a, pnt0.intScrCoords(basis).b);
                         gfx.DrawString(str,
                         new System.Drawing.Font("Consolas", 12),
                         new System.Drawing.SolidBrush(System.Drawing.Color.Blue),
-                        (int)pnt0.x(), (int)pnt0.y());
+                        (int)pnt0.x, (int)pnt0.y);
                     }
-                Point pnt = new Point(scrCent.a, scrCent.b);
-                IntPair pntScr = new IntPair(pnt.screenCoords(basis));
+                //Point pnt = new Point(scrCent.a, scrCent.b);
+                Point pnt = scrCent;
+                IntPair pntScr = new IntPair(pnt.intScrCoords(basis));
                 System.Drawing.Pen gray = new System.Drawing.Pen(System.Drawing.Color.Gray);
                 gfx.DrawLine(gray, pntScr.a - 5, pntScr.b, pntScr.a + 5, pntScr.b);
                 gfx.DrawLine(gray, pntScr.a, pntScr.b - 5, pntScr.a, pntScr.b + 5);
@@ -297,19 +260,19 @@ namespace VectorBasedLinesEngine
                     Point sectY = new Point(sector[s].a * sectSize, (sector[s].b + 1) * sectSize);
                     Line tmpLnA = new Line(sectAngl, sectX);
                     Line tmpLnB = new Line(sectAngl, sectY);
-                    sectAngl = new Point(sectAngl.screenCoords(basis));
-                    sectX = new Point(sectX.screenCoords(basis));
-                    sectY = new Point(sectY.screenCoords(basis));
-                    gfx.DrawLine(red, (int)sectAngl.x(), (int)sectAngl.y(), (int)sectX.x(), (int)sectX.y());//section borders
-                    gfx.DrawLine(blue, (int)sectAngl.x(), (int)sectAngl.y(), (int)sectY.x(), (int)sectY.y());
+                    sectAngl = sectAngl.intScrCoords(basis); sectAngl = sectAngl.zoomedCoords(screen.center, zoom);
+                    sectX = sectX.intScrCoords(basis); sectX = sectX.zoomedCoords(screen.center, zoom);
+                    sectY = sectY.intScrCoords(basis); sectY = sectY.zoomedCoords(screen.center, zoom);
+                    gfx.DrawLine(red, (int)sectAngl.x, (int)sectAngl.y, (int)sectX.x, (int)sectX.y);//section borders
+                    gfx.DrawLine(blue, (int)sectAngl.x, (int)sectAngl.y, (int)sectY.x, (int)sectY.y);
                     gfx.DrawString(tmpLnA.getEquasionString(),//equasions of section borders
                     new System.Drawing.Font("Consolas", 12),
                     new System.Drawing.SolidBrush(System.Drawing.Color.Red),
-                    (int)(sectAngl.x() + sectX.x()) / 2 - 5, (int)(sectAngl.y() + sectX.y()) / 2 - 5);
+                    (int)(sectAngl.x + sectX.x) / 2 - 5, (int)(sectAngl.y + sectX.y) / 2 - 5);
                     gfx.DrawString(tmpLnB.getEquasionString(),//equasions of section borders
                     new System.Drawing.Font("Consolas", 12),
                     new System.Drawing.SolidBrush(System.Drawing.Color.Blue),
-                    (int)(sectAngl.x() + sectY.x()) / 2 - 5, (int)(sectAngl.y() + sectY.y()) / 2 - 5);
+                    (int)(sectAngl.x + sectY.x) / 2 - 5, (int)(sectAngl.y + sectY.y) / 2 - 5);
                     String str = "";
                     for (int i = 0; i < sector.Count; i++)
                         str = str + sector[i].a + sector[i].b + "; ";
@@ -318,35 +281,26 @@ namespace VectorBasedLinesEngine
                         new System.Drawing.SolidBrush(System.Drawing.Color.Red),
                         0, 0);
                 }
-                Point coorTxt = new Point(meetPoint.a + 10, meetPoint.b + 10);
-                coorTxt = new Point(coorTxt.screenCoords(basis));
-                gfx.DrawString(meetPoint.a + " " + meetPoint.b + " " + screen.isPointInside(smp),
+                Point coorTxt = new Point(meetPoint.x + 10, meetPoint.y + 10);
+                coorTxt = coorTxt.intScrCoords(basis);
+                gfx.DrawString(meetPoint.x + " " + meetPoint.y + " " + screen.isPointInside(meetPoint),
                     new System.Drawing.Font("Consolas", 12),
                     new System.Drawing.SolidBrush(System.Drawing.Color.Black),
-                    (int)coorTxt.x() - 5, (int)coorTxt.y() - 5);
+                    (int)coorTxt.x - 5, (int)coorTxt.y - 5);
             }
         }
         public int sectorSize() { return sectSize; }
-        public void hartMethod(ScreenData screen, System.Diagnostics.Stopwatch timer)
+        public void hartMethod(ScreenData screen)
         {
-            //timer = new System.Diagnostics.Stopwatch();
-            timer.Start();//counting time
+            for (int i = 0; i < method.Count; i++ )
+                if (method[i] != null)
+                    method[i](this);//going through methods for doing other stuff
             for (int i = 0; i < block.Count; i++)
                 block[i].Set();//releasing the threads of all the entities
-            if (up) move(0, 2);//screen movement
-            if (down) move(0, -2);
-            if (left) move(2, 0);
-            if (right) move(-2, 0);
-            if (cw) rotate(1.0, screen);
-            if (ccw) rotate(-1.0, screen);
+            movementBlock.Set();//release the movement thread
             for (int i = 0; i < _entity.Count; i++)
                 if (_entity[i].moved)
                     _entity[i].reCalcSects();
-            //refreshed = false;
-            timer.Stop();
-            //int sleepTime = workTime - (int)(timer.ElapsedMilliseconds);
-            //if (sleepTime > 0)
-            //    System.Threading.Thread.Sleep(sleepTime);
 
         }
         private void stopHart()
@@ -355,6 +309,8 @@ namespace VectorBasedLinesEngine
                 _entity[i].stopAction();
             for (int i = 0; i < block.Count; i++)
                 block[i].Set();
+            hartStopped = true;
+            movementBlock.Set();
         }
         public void setEntityWithAction(int entInd, Action method, int cycles)
         {
@@ -385,7 +341,8 @@ namespace VectorBasedLinesEngine
     At first, I planned on dividing the plane in sections, that are larger than the screen, but with roughly the same width / height ratios.
     If the screen is a square, in the worst case the screen would occupy 4 sections. But if the screen is a rectangle with a much longer width than height
     (or vice-versa), the screen would be able to occupy a lot more sections in the worse case. By using squares for sections, calculating which sections
-    are occupied by the screen becomes much easier. That is why I am restricting the sections to be squares, with sizes wider than the screen's diagonal.
+    are occupied by the screen becomes much easier - in the worst case the screen can occupie only 4 sections. That is why I am restricting the sections to
+    be squares, with sizes wider than the screen's diagonal.
  */
 /*Large Comment #2
     The concept of finding which sections are visible by the screen is pretty simple, untill you have to start calculating the coordinates.
@@ -394,9 +351,9 @@ namespace VectorBasedLinesEngine
     to the plane's basis.
  */
 /*Large Comment #3
-    Due to the switching from double to int, the basis' coordinated tend to "rock", because of loss of accuracy when switching from double to int.
-    The accuracy gets lost so much, that the plane's basis' coordinates diverse with 3 pixels away from where they should be. I am not sure how the
-    whole thing causes so much diversion.
+    When rotating the basis, everty time the "rotation" variable goes above 360 or lower than 0, the value gets set to 0 or 360 respectively,
+    and then it gets changed further, according to how much the basis must rotate. Check "Basis.cs" for more info. When doing that, the
+    coordinates of the basis' center change and diverse with some pixels. That is why a stabilization algorithm is needed.
     Here I do the following things:
         Find the point, where the screen's center is located according to the plane's basis;
         Calculate where that point is according to the screen;
@@ -506,3 +463,102 @@ class Sector
             draw(ent, gfx, basis, screen, start);
     }
 }*/
+//used to be used for extracting entity data from a file, but this process is better to be done outside of the engine;
+/*using (StreamReader file = new StreamReader(entData))//this whole part should be done outside of the plane class
+            {//extracting the coordinates
+                string crrLine = file.ReadLine();
+                while (crrLine != null)
+                {
+                    char[] ignoreChar = { '|' };
+                    if (crrLine[0] == '|')//ignore any lines that don't start with '|'
+                    {
+                        string[] dataSect = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+                        if (dataSect[0].Equals("coordinates"))//we have reached the coordinates section
+                        {
+                            int count = Convert.ToInt32(dataSect[1]);//get how many coordinates are recorded
+                            crrLine = file.ReadLine();
+                            int i = 0;
+                            while (i < count)
+                            {
+                                if (crrLine[0] == '|')//ignore any lines that don't start with '|'
+                                {
+                                    string[] coords = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+                                    coord.Add(new IntPair(Convert.ToInt32(coords[0]), Convert.ToInt32(coords[1])));
+                                    i++;
+                                }
+                                crrLine = file.ReadLine();
+                            }
+                        }
+                        dataSect = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);//the current line has been read in the last cycle of the coordinates extraction loop
+                        if (dataSect[0].Equals("styles"))//we have reached the styles section
+                        {
+                            int count = Convert.ToInt32(dataSect[1]);//get how many styles are recorded
+                            crrLine = file.ReadLine();
+                            int i = 0;
+                            while (i < count)
+                            {
+                                if (crrLine[0] == '|')
+                                {
+                                    string[] stylePt = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+                                    imgDir.Add(stylePt[0]);//if the address is "null", later in the program the case will be handled
+                                    if (stylePt[1].Equals("null") == false)
+                                    {
+                                        string[] clr = stylePt[1].Split(',');
+                                        color.Add(System.Drawing.Color.FromArgb(
+                                            Convert.ToInt32(clr[0]),
+                                            Convert.ToInt32(clr[1]),
+                                            Convert.ToInt32(clr[2]),
+                                            Convert.ToInt32(clr[3])));
+                                    }
+                                    else
+                                        color.Add(System.Drawing.Color.FromArgb(0, 0, 0, 0));
+                                    i++;
+                                }
+                                crrLine = file.ReadLine();
+                            }
+                        }
+                        dataSect = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+                        if (dataSect[0].Equals("entites"))//we have reached the entites section
+                        {
+                            int count = Convert.ToInt32(dataSect[1]);//get how many entites are recorded
+                            crrLine = file.ReadLine();
+                            int i = 0;
+                            while (i < count && crrLine != null)//the last may be scanned here
+                            {
+                                if (crrLine[0] == '|')
+                                {
+                                    bool entProc = false;//has an entity been processed
+                                    string[] entityPt = crrLine.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+                                    if (entityPt[0].Equals("stdPoint"))
+                                    {
+                                        addEntity(new PointEntity(
+                                            color[Convert.ToInt32(entityPt[2])],
+                                            imgDir[Convert.ToInt32(entityPt[2])],
+                                            coord[Convert.ToInt32(entityPt[1])], this));
+                                        entProc = true;
+                                    }
+                                    if (entityPt[0].Equals("stdLine"))
+                                    {
+                                        addEntity(new LineEntity(
+                                            color[Convert.ToInt32(entityPt[3])],
+                                            coord[Convert.ToInt32(entityPt[1])],
+                                            coord[Convert.ToInt32(entityPt[2])], this));
+                                        entProc = true;
+                                    }
+                                    //if (entityPt[0].Equals("stdPolygon"))
+                                    //{
+
+                                    //}
+                                    if (entProc == false)
+                                    { throw new ArgumentException("Unknown entity!"); }//for debugging, if a valid record with an unknown entity word has been found, use when adding new entities
+                                    crrLine = file.ReadLine();
+                                }
+                                else
+                                    crrLine = file.ReadLine();
+                            }
+                        }
+                    }
+                    else
+                        crrLine = file.ReadLine();
+                }
+            }*/
