@@ -26,6 +26,11 @@ namespace VectorBasedLinesEngine
             _x = p.a;
             _y = p.b;
         }
+        public Point(DoublePair p)
+        {
+            _x = p.a;
+            _y = p.b;
+        }
         public double x {
             get { return _x; }
             set { _x = value; } }
@@ -37,7 +42,7 @@ namespace VectorBasedLinesEngine
         public void setCoords(double x, double y) { _x = x; _y = y; }
         public DoublePair doubleCoords { get { return new DoublePair(_x, _y); } set { _x = value.a; _y = value.b; } }
         public IntPair intCoords { get { return new IntPair((int)System.Math.Round(_x), (int)System.Math.Round(_y)); } }
-        public DoublePair doubleScrCoords(Basis planeBasis)
+        public DoublePair doubleScrCoords(Basis planeBasis)//screen coordinates with no zoom
         {//coordinates of the point relative to the screen's basis
             //each dot is treated like a vector - this is how a vector's coordinates change when switching the basis
             double OXlen = planeBasis.OXlen;
@@ -47,43 +52,53 @@ namespace VectorBasedLinesEngine
             double resy = (planeBasis.xVector.y - planeBasis.center.y) * _x / OXlen + (planeBasis.yVector.y - planeBasis.center.y) * _y / OYlen + planeBasis.center.y;
             return new DoublePair((int)resx, (int)resy);
         }
-        public IntPair intScrCoords(Basis planeBasis)
+        public IntPair intScrCoords(Basis planeBasis)//int coordinates without zoom
         {
             DoublePair res = doubleScrCoords(planeBasis);
-            return new IntPair((int)res.a, (int)res.b);
+            return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
         }
-        public DoublePair dobulePlaneCoords(Basis planeBasis)
+        public IntPair intScrCoords(Basis planeBasis, ScreenData screen)//int coordinates with zoom
         {
-            DoublePair x = new DoublePair(planeBasis.xVector.x, planeBasis.xVector.y);//X basis vector
-            DoublePair y = new DoublePair(planeBasis.yVector.x, planeBasis.yVector.y);//Y basis vector
-            DoublePair c = new DoublePair(planeBasis.center.x, planeBasis.center.y);//center
-            double ox1 = (x.a - c.a) / planeBasis.OXlen;
-            double oy1 = (x.b - c.b) / planeBasis.OXlen;
-            double ox2 = (y.a - c.a) / planeBasis.OYlen;
-            double oy2 = (y.b - c.b) / planeBasis.OYlen;
+            DoublePair res = doubleScrCoords(planeBasis);
+            return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
+        }
+        public DoublePair dobulePlaneCoords(Basis planeBasis, bool zoom, bool div)
+        {
+            double OXlen;
+            double OYlen;
+            if      (zoom && div)  { OXlen = planeBasis.OXlen;         OYlen = planeBasis.OYlen; }
+            else if (zoom && !div) { OXlen = planeBasis.OXlenNoDiv;    OYlen = planeBasis.OYlenNoDiv; }
+            else if (!zoom && div) { OXlen = planeBasis.OXlenNoZoom;   OYlen = planeBasis.OYlenNoZoom; }
+            else                   { OXlen = planeBasis.OXlenBaseVals; OYlen = planeBasis.OYlenBaseVals; }
+            double ox1 = (planeBasis.xVector.x - planeBasis.center.x) / OXlen;
+            double oy1 = (planeBasis.xVector.y - planeBasis.center.y) / OXlen;
+            double ox2 = (planeBasis.yVector.x - planeBasis.center.x) / OYlen;
+            double oy2 = (planeBasis.yVector.y - planeBasis.center.y) / OYlen;
             double resx;
             double resy;
             if (ox2 == 0.0)
             {
                 if (ox1 == 0.0 || oy2 == 0) throw new DivideByZeroException("A value has become zero.");
-                resx = (_x - c.a) / ox1;
-                resy = (ox1 * (_y - c.b) + oy1 * (c.a - _x)) / (ox1 * oy2);
+                resx = (_x - planeBasis.center.x) / ox1;
+                resy = (ox1 * (_y - planeBasis.center.y) + oy1 * (planeBasis.center.x - _x)) / (ox1 * oy2);
             }
             else
             {
                 if (ox2 * oy1 - ox1 * oy2 == 0.0 || ox2 == 0) throw new DivideByZeroException("A value has become zero.");
-                resx = (ox2 * (_y - c.b) + oy2 * (c.a - _x)) / (ox2 * oy1 - ox1 * oy2);
-                resy = (_x - c.a - ox1 * resx) / ox2;
+                resx = (ox2 * (_y - planeBasis.center.y) + oy2 * (planeBasis.center.x - _x)) / (ox2 * oy1 - ox1 * oy2);
+                resy = (_x - planeBasis.center.x - ox1 * resx) / ox2;
             }
             return new DoublePair(resx, resy);
         }
-        public IntPair intPlaneCoords(Basis planeBasis)
-        {//the coordinates of the point relative to the plane's basis
-            DoublePair res = dobulePlaneCoords(planeBasis);
+        public DoublePair dobulePlaneCoords(Basis planeBasis) { return dobulePlaneCoords(planeBasis, true, true); }
+        public IntPair intPlaneCoords(Basis planeBasis, bool zoom, bool div)
+        {//the coordinates of the point on the screen relative to the plane's basis
+            DoublePair res = dobulePlaneCoords(planeBasis, zoom, div);
             return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
         }
+        public IntPair intPlaneCoords(Basis planeBasis) { return intPlaneCoords(planeBasis, true, true); }
         public DoublePair zoomedCoords(Point center, double zoom)
-        {
+        {//usefull here and there
             return new DoublePair(
                 (_x - center.x) * zoom + center.x,
                 (_y - center.y) * zoom + center.y);
@@ -344,7 +359,12 @@ namespace VectorBasedLinesEngine
     devide the basis vectors by their lengths, so I can work with the basis vectors X / length(X) and Y / length(Y).
     I may have explained this badly, but this is part of the basics of Analytical Geometry, where the whole thing is
     explained much better. In this case I have used sums of vectors, miltiplication of vectors with numbers and switching
-    co-ordinate systems.*/
+    co-ordinate systems.
+    Currently, the basis vectors are set to 1px, but I advise not to remove the divisions, because the basis vector lengths
+    have a really heavy effect on the projecting of the entities on the screen. However, it should not cause bugs. I have
+    implemented an option to add diversions for the basis vectors, that would have the same effect on the program as removing
+    the divisions. Why not just remove the divisions? I think this way I and you can have easier control over the program.
+*/
 
 //double resx = -1;
 //double resy = -1;

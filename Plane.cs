@@ -14,21 +14,66 @@ namespace VectorBasedLinesEngine
         private int sectRows;//section rows
         private int sectCols;//section colums
         private int sectSize;//width and height of each sector
-        private double _zoom;
         private double minZoom = 0.5;
-        private double maxZoom = 2.0;
+        //private double maxZoom = 2.0;
         public double zoom
         {
-            get { return _zoom; }
-            set
-            {
-                if (value >= minZoom && value <= maxZoom)
-                    _zoom = value;
-            }
+            get { return basis.zoom; }
+            set { basis.zoom = value; }
+        }
+        //diversion in the basis vectors, because why not: setting it should cause all coordinates to diverse from their original positions, use for screen effects
+        //center diversion accessors
+        public DoublePair centerDiversion
+        {
+            get { return basis.centerDiversion; }
+            set { basis.centerDiversion = new DoublePair(value.a, value.b); }
+        }
+        public double centerDiversionX
+        {
+            get { return centerDiversion.a; }
+            set { basis.centerDiversion = new DoublePair(value, basis.centerDiversion.b); }
+        }
+        public double centerDiversionY
+        {
+            get { return centerDiversion.b; }
+            set { basis.centerDiversion = new DoublePair(basis.centerDiversion.a, value); }
+        }
+        //X vector diversion accessors
+        public DoublePair xVectorDiversion
+        {
+            get { return basis.xVectorDiversion; }
+            set { basis.xVectorDiversion = new DoublePair(value.a, value.b); }
+        }
+        public double xVectorDiversionX
+        {
+            get { return xVectorDiversion.a; }
+            set { basis.xVectorDiversion = new DoublePair(value, basis.xVectorDiversion.b); }
+        }
+        public double xVectorDiversionY
+        {
+            get { return xVectorDiversion.b; }
+            set { basis.xVectorDiversion = new DoublePair(basis.xVectorDiversion.a, value); }
+        }
+        //Y vector diversion accessors
+        public DoublePair yVectorDiversion
+        {
+            get { return basis.yVectorDiversion; }
+            set { basis.yVectorDiversion = new DoublePair(value.a, value.b); }
+        }
+        public double yVectorDiversionX
+        {
+            get { return yVectorDiversion.a; }
+            set { basis.yVectorDiversion = new DoublePair(value, basis.yVectorDiversion.b); }//we are changing the X value, the Y value remain the same
+        }
+        public double yVectorDiversionY
+        {
+            get { return yVectorDiversion.b; }
+            set { basis.yVectorDiversion = new DoublePair(basis.yVectorDiversion.a, value); }//we are changing the Y value, the X value remain the same
         }
         //Refer to Large Comment #1 for more info on the sections
         private List<List<SortedSet<int>>> entInd;//[sector row][sector column]
         private List<Entity> _entity;
+
         //private System.Threading.Thread hart;//because the WinForm forms can be manipulated only from the main thread, the hart must be called by a timer in the game's code
         private List<System.Threading.AutoResetEvent> block;
         private Object entLock;
@@ -56,8 +101,7 @@ namespace VectorBasedLinesEngine
             sectCols = sc;
             sectRows = sr;
             sectSize = ((int)(System.Math.Sqrt(Math.Pow((double)scrHt / minZoom, 2) + Math.Pow((double)scrWd / minZoom, 2))) / 100) * 100 + 100;
-            basis = new Basis(0, 0, sectSize);
-            _zoom = 1;
+            basis = new Basis(0, 0, new ScreenData(scrWd, scrHt));
             _entity = new List<Entity>();
             entInd = new List<List<SortedSet<int>>>();
             for (int row = 0; row < sr; row++)
@@ -82,14 +126,10 @@ namespace VectorBasedLinesEngine
             moveThread = new System.Threading.Thread(() => moveCycle());
             moveThread.Start();
         }
-        public Plane(int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm)
-        {
-            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm);
-        }
-        public Plane(int basisCenterX, int basisCenterY, int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm)
-        {
-            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm);
-        }
+        public Plane(int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm) {
+            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm); }
+        public Plane(int basisCenterX, int basisCenterY, int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm) {
+            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm); }
         public void addEntity(Entity e)
         {
             IntPair[] sect = e.locatedInSections(sectSize);//the pair is returned in the format (colum, row), or sect[n].a is the colum and sect[n].b is the row
@@ -113,11 +153,11 @@ namespace VectorBasedLinesEngine
         {
             //changeScreenSize(screen);
             //Refer to Large Comment #3 fo info on the stabilization
-            Point crrCent = new Point(screen.center.intPlaneCoords(basis));//point with the screen center's current coordinates according to the plane's basis
-            DoublePair crrCentScr = crrCent.doubleScrCoords(basis);//screen coordinates of the point according to the screen
+            //Point crrCent = new Point(screen.center.intPlaneCoords(basis, screen));//point with the screen center's current coordinates according to the plane's basis
+            //DoublePair crrCentScr = crrCent.doubleScrCoords(basis, screen);//screen coordinates of the point according to the screen
             basis.rotate(deg, new DoublePair(screen.center.x, screen.center.y));//rotating
-            DoublePair newCentScr = crrCent.doubleScrCoords(basis);//the new screen coordinates of the point according to the screen
-            move(crrCentScr.a - newCentScr.a, crrCentScr.b - newCentScr.b);//moving with the pixels of the diversion
+            //DoublePair newCentScr = crrCent.doubleScrCoords(basis, screen);//the new screen coordinates of the point according to the screen
+            //move(crrCentScr.a - newCentScr.a, crrCentScr.b - newCentScr.b);//moving with the pixels of the diversion
             //if (basis.x().x == basis.y().x || basis.x().y == basis.y().y) throw new SystemException("Basis vectors have become the same!");
         }
         public void move(double pxx, double pxy)
@@ -132,9 +172,9 @@ namespace VectorBasedLinesEngine
                     return true;
             return false;
         }
-        private void addSects(List<IntPair> sector, IntPair ul, IntPair ur, IntPair dl, IntPair dr, double zoom, System.Drawing.Graphics gfx)
+        private void addSects(List<IntPair> sector, IntPair ul, IntPair ur, IntPair dl, IntPair dr, System.Drawing.Graphics gfx, ScreenData scr)
         {
-            //int zSectSize = (int)Math.Round((double)sectSize / zoom);
+            //int zSectSize = (int)Math.Round((double)sectSize / _zoom);
             IntPair uls = new IntPair(ul.a / sectSize, ul.b / sectSize);
             IntPair urs = new IntPair(ur.a / sectSize, ur.b / sectSize);
             IntPair dls = new IntPair(dl.a / sectSize, dl.b / sectSize);
@@ -149,10 +189,10 @@ namespace VectorBasedLinesEngine
                 sector.Add(drs);
             if (debug)
             {
-                Line ln0 = new Line(ul, ur); ln0 = new Line(ln0.start.intScrCoords(basis), ln0.end.intScrCoords(basis));
-                Line ln1 = new Line(ur, dr); ln1 = new Line(ln1.start.intScrCoords(basis), ln1.end.intScrCoords(basis));
-                Line ln2 = new Line(dl, dr); ln2 = new Line(ln2.start.intScrCoords(basis), ln2.end.intScrCoords(basis));
-                Line ln3 = new Line(dl, ul); ln3 = new Line(ln3.start.intScrCoords(basis), ln3.end.intScrCoords(basis));
+                Line ln0 = new Line(ul, ur); ln0 = new Line(ln0.start.intScrCoords(basis, scr), ln0.end.intScrCoords(basis, scr));
+                Line ln1 = new Line(ur, dr); ln1 = new Line(ln1.start.intScrCoords(basis, scr), ln1.end.intScrCoords(basis, scr));
+                Line ln2 = new Line(dl, dr); ln2 = new Line(ln2.start.intScrCoords(basis, scr), ln2.end.intScrCoords(basis, scr));
+                Line ln3 = new Line(dl, ul); ln3 = new Line(ln3.start.intScrCoords(basis, scr), ln3.end.intScrCoords(basis, scr));
                 System.Drawing.Pen gray = new System.Drawing.Pen(System.Drawing.Color.Gray);
                 gfx.DrawLine(gray, (int)(ln0.start.x), (int)(ln0.start.y), (int)(ln0.end.x), (int)(ln0.end.y));
                 gfx.DrawLine(gray, (int)(ln1.start.x), (int)(ln1.start.y), (int)(ln1.end.x), (int)(ln1.end.y));
@@ -165,28 +205,15 @@ namespace VectorBasedLinesEngine
         {
             //Refer to large comment #2 for info on how the algorithm detects which section the screen occupies
             List<IntPair> sector = new List<IntPair>();//sectors the screen occupies
-            IntPair scrCent = screen.center.intPlaneCoords(basis);//screen center's coordinates according to the plane's basis
-            //ScreenData zoomedScr = new ScreenData((int)(screen.width / zoom), (int)(screen.height / zoom));
-            //basis.center.zoomedCoords(scrCent, zoom);
-            //basis.center.zoomedCoords(scrCent, zoom);
-            //basis.xVector.zoomedCoords(scrCent, zoom);
-            //basis.xVector.zoomedCoords(scrCent, zoom);
-            //basis.yVector.zoomedCoords(scrCent, zoom);
-            //basis.yVector.zoomedCoords(scrCent, zoom);
-            IntPair scrSect = new IntPair(scrCent.a / basis.vectorLengthInt, scrCent.b / basis.vectorLengthInt);//column, row; in which sector is the center of the screen located
+            IntPair scrCent = screen.center.intPlaneCoords(basis, true, true);//screen center's coordinates according to the plane's basis
+            IntPair scrSect = new IntPair(scrCent.a / sectSize, scrCent.b / sectSize);//column, row; in which sector is the center of the screen located
             Point meetPoint = new Point(//nearest point, where four sectors border
                 Math.Round(Math.Round((double)scrCent.a / (double)sectSize)) * sectSize,//the coordinates of the top left corner of each
                 Math.Round(Math.Round((double)scrCent.b / (double)sectSize)) * sectSize);//sector are sectCol * sectSize and sectRow * sectSize
             IntPair meetPointSect = new IntPair((int)(meetPoint.x) / sectSize, (int)(meetPoint.y) / sectSize);
-            meetPoint = meetPoint.zoomedCoords(scrCent, zoom);
-            if (screen.isPointInside(meetPoint.intScrCoords(basis)))
+            //meetPoint = meetPoint.zoomedCoords(scrCent, _zoom);
+            if (screen.isPointInside(meetPoint.intScrCoords(basis, screen)))
             {
-                //addSects(sector,
-                //    new IntPair(meetPoint.x - sectSize / 2, meetPoint.y - sectSize / 2),//up left
-                //    new IntPair(meetPoint.x + sectSize / 2, meetPoint.y - sectSize / 2),//up right
-                //    new IntPair(meetPoint.x - sectSize / 2, meetPoint.y + sectSize / 2),//down left
-                //    new IntPair(meetPoint.x + sectSize / 2, meetPoint.y + sectSize / 2),//down right
-                //    zoom, gfx);
                 sector.Add(new IntPair(meetPointSect.a, meetPointSect.b));
                 if (meetPointSect.a - 1 > -1)
                     sector.Add(new IntPair(meetPointSect.a - 1, meetPointSect.b));
@@ -197,15 +224,15 @@ namespace VectorBasedLinesEngine
             }
             else
             {
-                Point upLt = new Point(0, 0);                        upLt = new Point(upLt.intPlaneCoords(basis)); upLt = upLt.zoomedCoords(scrCent, 1 / zoom);
-                Point upRt = new Point(screen.width, 0);             upRt = new Point(upRt.intPlaneCoords(basis)); upRt = upRt.zoomedCoords(scrCent, 1 / zoom);
-                Point dnLt = new Point(0, screen.height);            dnLt = new Point(dnLt.intPlaneCoords(basis)); dnLt = dnLt.zoomedCoords(scrCent, 1 / zoom);
-                Point dnRt = new Point(screen.width, screen.height); dnRt = new Point(dnRt.intPlaneCoords(basis)); dnRt = dnRt.zoomedCoords(scrCent, 1 / zoom);
+                Point upLt = new Point(0, 0); upLt = new Point(upLt.intPlaneCoords(basis, true, true));// upLt = upLt.zoomedCoords(scrCent, 1 / _zoom);
+                Point upRt = new Point(screen.width, 0); upRt = new Point(upRt.intPlaneCoords(basis, true, true));// upRt = upRt.zoomedCoords(scrCent, 1 / _zoom);
+                Point dnLt = new Point(0, screen.height); dnLt = new Point(dnLt.intPlaneCoords(basis, true, true));// dnLt = dnLt.zoomedCoords(scrCent, 1 / _zoom);
+                Point dnRt = new Point(screen.width, screen.height); dnRt = new Point(dnRt.intPlaneCoords(basis, true, true));// dnRt = dnRt.zoomedCoords(scrCent, 1 / _zoom);
                 IntPair ul = new IntPair(upLt.x, upLt.y);//up left angle
                 IntPair ur = new IntPair(upRt.x, upRt.y);//up right
                 IntPair dl = new IntPair(dnLt.x, dnLt.y);//down left
                 IntPair dr = new IntPair(dnRt.x, dnRt.y);//down right
-                addSects(sector, ul, ur, dl, dr, zoom, gfx);
+                addSects(sector, ul, ur, dl, dr, gfx, screen);
             }
             lock (entLock)
             {
@@ -235,7 +262,7 @@ namespace VectorBasedLinesEngine
                                 str += "\n";
                         }
                         Point pnt0 = new Point(c * sectSize + sectSize / 2, r * sectSize + sectSize / 2);
-                        pnt0.setCoords(pnt0.intScrCoords(basis).a, pnt0.intScrCoords(basis).b);
+                        pnt0.setCoords(pnt0.intScrCoords(basis, screen).a, pnt0.intScrCoords(basis, screen).b);
                         gfx.DrawString(str,
                         new System.Drawing.Font("Consolas", 12),
                         new System.Drawing.SolidBrush(System.Drawing.Color.Blue),
@@ -243,7 +270,7 @@ namespace VectorBasedLinesEngine
                     }
                 //Point pnt = new Point(scrCent.a, scrCent.b);
                 Point pnt = scrCent;
-                IntPair pntScr = new IntPair(pnt.intScrCoords(basis));
+                IntPair pntScr = new IntPair(pnt.intScrCoords(basis, screen));
                 System.Drawing.Pen gray = new System.Drawing.Pen(System.Drawing.Color.Gray);
                 gfx.DrawLine(gray, pntScr.a - 5, pntScr.b, pntScr.a + 5, pntScr.b);
                 gfx.DrawLine(gray, pntScr.a, pntScr.b - 5, pntScr.a, pntScr.b + 5);
@@ -260,9 +287,9 @@ namespace VectorBasedLinesEngine
                     Point sectY = new Point(sector[s].a * sectSize, (sector[s].b + 1) * sectSize);
                     Line tmpLnA = new Line(sectAngl, sectX);
                     Line tmpLnB = new Line(sectAngl, sectY);
-                    sectAngl = sectAngl.intScrCoords(basis); sectAngl = sectAngl.zoomedCoords(screen.center, zoom);
-                    sectX = sectX.intScrCoords(basis); sectX = sectX.zoomedCoords(screen.center, zoom);
-                    sectY = sectY.intScrCoords(basis); sectY = sectY.zoomedCoords(screen.center, zoom);
+                    sectAngl = sectAngl.intScrCoords(basis, screen);// sectAngl = sectAngl.zoomedCoords(screen.center, _zoom);
+                    sectX = sectX.intScrCoords(basis, screen);// sectX = sectX.zoomedCoords(screen.center, _zoom);
+                    sectY = sectY.intScrCoords(basis, screen);// sectY = sectY.zoomedCoords(screen.center, _zoom);
                     gfx.DrawLine(red, (int)sectAngl.x, (int)sectAngl.y, (int)sectX.x, (int)sectX.y);//section borders
                     gfx.DrawLine(blue, (int)sectAngl.x, (int)sectAngl.y, (int)sectY.x, (int)sectY.y);
                     gfx.DrawString(tmpLnA.getEquasionString(),//equasions of section borders
@@ -282,7 +309,7 @@ namespace VectorBasedLinesEngine
                         0, 0);
                 }
                 Point coorTxt = new Point(meetPoint.x + 10, meetPoint.y + 10);
-                coorTxt = coorTxt.intScrCoords(basis);
+                coorTxt = coorTxt.intScrCoords(basis, screen);
                 gfx.DrawString(meetPoint.x + " " + meetPoint.y + " " + screen.isPointInside(meetPoint),
                     new System.Drawing.Font("Consolas", 12),
                     new System.Drawing.SolidBrush(System.Drawing.Color.Black),
@@ -324,9 +351,11 @@ namespace VectorBasedLinesEngine
         }
         public void command(string cmd)
         {
-            if (cmd.Equals("stop"))
+            if (cmd.Equals("stop")) { stopHart(); }
+            else if (cmd.Equals("debug"))
             {
-                stopHart();
+                if (debug) debug = false;
+                else debug = true;
             }
         }
         public void enableEntityActions()
@@ -350,7 +379,7 @@ namespace VectorBasedLinesEngine
     Otherwise, the sections, that are visible by the screen, are the sections, where the angles of the screen are located, relative
     to the plane's basis.
  */
-/*Large Comment #3
+/*Large Comment #3 (read last line in the comment)
     When rotating the basis, everty time the "rotation" variable goes above 360 or lower than 0, the value gets set to 0 or 360 respectively,
     and then it gets changed further, according to how much the basis must rotate. Check "Basis.cs" for more info. When doing that, the
     coordinates of the basis' center change and diverse with some pixels. That is why a stabilization algorithm is needed.
@@ -361,6 +390,7 @@ namespace VectorBasedLinesEngine
         Once more calculate where the point is according to the screen (rotating causing a diversion);
         Move the plane with the number of pixels of the diversion between the old screen center coordinates and new ones;
     However, that still causes some diversion and leaves 1px rocking. I may need a better, more accurate algorithm.
+    Scrap all that, it is better not have any stabilization at all, but use double variables everywhere.
  */
 
 /*IntPair pbscp = new IntPair();//point between sectors coordinates pair

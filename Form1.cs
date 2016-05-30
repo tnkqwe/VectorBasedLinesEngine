@@ -21,8 +21,8 @@ namespace VectorBasedLinesEngine
         bool isAntiAlias = false;
         int scrHeight;
         int scrWidth;
-        int heightParts = 9;
-        int widthParts = 16;
+        int heightParts = 9;//use to set the aspect ratio accurately
+        int widthParts = 16;//it is also used when resizing the window
         int pixelsPerPart = 40;
         System.Diagnostics.Stopwatch timer;
         int fps = 60;
@@ -41,6 +41,7 @@ namespace VectorBasedLinesEngine
             this.MinimumSize = new System.Drawing.Size(this.Width, this.Height);
             timer = new System.Diagnostics.Stopwatch();
             plane = new Plane(5, 5, scrWidth, scrHeight, fancyCameraMovementMethod);
+            plane.addMethodToHart(fancyTestMethod0);
             using (StreamWriter file = new StreamWriter(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
             {//encoding the entity data
                 file.WriteLine("This is an example for an entities data file.");
@@ -190,13 +191,43 @@ namespace VectorBasedLinesEngine
             if (down) plane.move(0, -2.0 / plane.zoom);
             if (left) plane.move(2.0 / plane.zoom, 0);
             if (right) plane.move(-2.0 / plane.zoom, 0);
-            if (cw) plane.rotate(1.0, new ScreenData(widthParts * pixelsPerPart, heightParts * pixelsPerPart));
-            if (ccw) plane.rotate(-1.0, new ScreenData(widthParts * pixelsPerPart, heightParts * pixelsPerPart));
+            if (cw) plane.rotate(0.8, new ScreenData(widthParts * pixelsPerPart, heightParts * pixelsPerPart));
+            if (ccw) plane.rotate(-0.8, new ScreenData(widthParts * pixelsPerPart, heightParts * pixelsPerPart));
         }
-
+        DoublePair maxCDiv = new DoublePair(0.02, 0.02);
+        DoublePair minCDiv = new DoublePair(-0.02, -0.01);
+        DoublePair divSpC = new DoublePair(0.0001, 0.0003);
+        DoublePair maxXDiv = new DoublePair(0.02, 0.03);
+        DoublePair minXDiv = new DoublePair(-0.04, -0.05);
+        DoublePair divSpX = new DoublePair(0.0003, 0.0001);
+        DoublePair maxYDiv = new DoublePair(0.02, 0.04);
+        DoublePair minYDiv = new DoublePair(-0.03, -0.05);
+        DoublePair divSpY = new DoublePair (0.0002, 0.0002);
         private void fancyTestMethod0(Plane plane)
         {
+            if (plane.centerDiversion.a >= maxCDiv.a || plane.centerDiversion.a <= minCDiv.a)
+                divSpC.a = (-1) * divSpC.a;
+            if (plane.centerDiversion.b >= maxCDiv.b || plane.centerDiversion.b <= minCDiv.b)
+                divSpC.b = (-1) * divSpC.b;
+            plane.centerDiversionX += divSpC.a;
+            plane.centerDiversionY += divSpC.b;
+            //plane.centerDiversion = new DoublePair(plane.centerDiversion.a + divSpC.a, plane.centerDiversion.b + divSpC.b);
 
+            if (plane.xVectorDiversion.a >= maxXDiv.a || plane.xVectorDiversion.a <= minXDiv.a)
+                divSpX.a = (-1) * divSpX.a;
+            if (plane.xVectorDiversion.b >= maxXDiv.b || plane.xVectorDiversion.b <= minXDiv.b)
+                divSpX.b = (-1) * divSpX.b;
+            plane.xVectorDiversionX = divSpX.a;
+            plane.xVectorDiversionY = divSpX.b;
+            //plane.xVectorDiversion = new DoublePair(plane.xVectorDiversion.a + divSpX.a, plane.xVectorDiversion.b + divSpX.b);
+
+            if (plane.yVectorDiversion.a >= maxYDiv.a || plane.yVectorDiversion.a <= minYDiv.a)
+                divSpY.a = (-1) * divSpY.a;
+            if (plane.yVectorDiversion.b >= maxYDiv.b || plane.yVectorDiversion.b <= minYDiv.b)
+                divSpY.b = (-1) * divSpY.b;
+            plane.yVectorDiversionX += divSpY.a;
+            plane.yVectorDiversionY += divSpY.b;
+            //plane.yVectorDiversion = new DoublePair(plane.yVectorDiversion.a + divSpY.a, plane.yVectorDiversion.b + divSpY.b);
         }
         int hor1 = -1;
         int ver1 = -1;
@@ -209,7 +240,7 @@ namespace VectorBasedLinesEngine
                 if (pe.coordinates.y <= 100 && ver1 == -1) ver1 = 1;
                 if (pe.coordinates.x >= 500 && hor1 == 1) hor1 = -1;
                 if (pe.coordinates.y >= 1000 && ver1 == 1) ver1 = -1;
-                pe.setCoords(pe.coordinates.x + hor1 * 0.5, pe.coordinates.y + ver1 * 1);
+                pe.setCoords(pe.coordinates.x + hor1 * 1.5, pe.coordinates.y + ver1 * 2);
             }
         }
         int hor2 = -1;

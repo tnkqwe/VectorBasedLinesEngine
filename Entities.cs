@@ -8,8 +8,9 @@ using System.Threading;
 namespace VectorBasedLinesEngine
 {
     delegate void Action(Plane plane, Entity e);//in case you want to do some fancy stuff; yes the action can also have an effect on other entites
-    abstract class Entity //generic entity, based on that you should be able to build points, lines, polygons or other stuff
+    abstract class Entity// : Drawable //generic entity, based on that you should be able to build points, lines, polygons or other stuff
     {
+        //drawing methods
         protected int _type;
         public int typeAsInt { get { return _type; } }
         protected Plane _plane;//the plane the entity belongs to
@@ -17,6 +18,24 @@ namespace VectorBasedLinesEngine
         protected int index;//index in the plane
         protected IntPair[] section;//located in these sections; will be used when objects move
         public bool moved;//if the entity has moved
+        public abstract void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id);
+        public void setIndexInPlane(int ind) { index = ind; }
+        public int indexInPlane() { return index; }
+        public abstract void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen);
+        protected abstract IntPair[] _locatedInSections(int sectorSize);//calculates which sections are the occupied section
+        public IntPair[] locatedInSections(int sectorSize)//sets and returns which sections are the occupied sections
+        {
+            section = _locatedInSections(sectorSize);
+            return section;
+        }
+        public IntPair[] locatedInSections() { return section; }
+        public void reCalcSects()
+        {
+            IntPair[] oldSect = section;
+            section = _locatedInSections(_plane.sectorSize());
+            _plane.changeEntitySections(index, section, oldSect);
+        }
+        //===============
         public Action method;//the method, that is going to do fancy stuff
        // private Object actionData;//data, that is going to be used by the action method
         private AutoResetEvent block;//to let the method make one cycle per frame
@@ -51,32 +70,9 @@ namespace VectorBasedLinesEngine
                     block.WaitOne();
                 }
         }
-        public abstract void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id);
-        protected IntPair zoomedInScrPoint(Point pnt, Basis basis, ScreenData screen)
-        {
-            Point res0 = pnt.doubleScrCoords(basis);
-            res0 = res0.zoomedCoords(new DoublePair(screen.width / 2, screen.height / 2), plane.zoom);
-            return new IntPair((int)(Math.Round(res0.x)), (int)(Math.Round(res0.y)));
-        }
         //public abstract string[] getProperties();//gets a string of all the properties of the entity
         public abstract string dataString();
         public abstract void copy(Entity e);//copies the properties of the argument entity
-        public void setIndexInPlane(int ind) { index = ind; }
-        public int indexInPlane() { return index; }
-        public abstract void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen);
-        protected abstract IntPair[] _locatedInSections(int sectorSize);//calculates which sections are the occupied section
-        public IntPair[] locatedInSections(int sectorSize)//sets and returns which sections are the occupied sections
-        {
-            section = _locatedInSections(sectorSize);
-            return section;
-        }
-        public IntPair[] locatedInSections() { return section; }
-        public void reCalcSects()
-        {
-            IntPair[] oldSect = section;
-            section = _locatedInSections(_plane.sectorSize());
-            _plane.changeEntitySections(index, section, oldSect);
-        }
     }
     class PointEntity : Entity
     {
@@ -96,7 +92,8 @@ namespace VectorBasedLinesEngine
         public string typeAsString { get { return "stdPoint"; } }
         public override void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
         {
-            IntPair res = zoomedInScrPoint(_coords, basis, screen);
+            //IntPair res = zoomedInScrPoint(_coords, basis, screen);
+            IntPair res = _coords.intScrCoords(basis, screen);
             System.Drawing.Pen pen = new System.Drawing.Pen(System.Drawing.Color.Black);
             if (isInScreen(res.a, res.b, screen))
             {
@@ -198,8 +195,8 @@ namespace VectorBasedLinesEngine
         }
         public override void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
         {
-            //IntPair res = _coords.intScrCoords(basis);
-            IntPair res = zoomedInScrPoint(_coords, basis, screen);
+            IntPair res = _coords.intScrCoords(basis, screen);
+            //IntPair res = zoomedInScrPoint(_coords, basis, screen);
             int resx = res.a;
             int resy = res.b;
             lock (_image)
@@ -296,10 +293,10 @@ namespace VectorBasedLinesEngine
         public override void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
         {
             System.Drawing.Pen pen = new System.Drawing.Pen(_color);
-            //IntPair st = ln.start.intScrCoords(basis);
-            //IntPair en = ln.end.intScrCoords(basis);
-            IntPair st = zoomedInScrPoint(ln.start, basis, screen);
-            IntPair en = zoomedInScrPoint(ln.end, basis, screen);
+            IntPair st = ln.start.intScrCoords(basis, screen);
+            IntPair en = ln.end.intScrCoords(basis, screen);
+            //IntPair st = zoomedInScrPoint(ln.start, basis, screen);
+            //IntPair en = zoomedInScrPoint(ln.end, basis, screen);
             Line scrLn = new Line((double)st.a, (double)st.b, (double)en.a, (double)en.b);
             //scrLn = scrLn.lineToDraw(basis, screen);
             //gfx.DrawString(_color.A + " " + _color.R + " " + _color.G + " " + _color.B,
@@ -389,8 +386,8 @@ namespace VectorBasedLinesEngine
         //==============================================================================================
         public bool isInScreen(Basis basis, ScreenData screen)
         {
-            Point scrSt0 = ln.start.doubleScrCoords(basis); scrSt0 = scrSt0.zoomedCoords(screen.center, plane.zoom);
-            Point scrEn0 = ln.end.doubleScrCoords(basis);   scrEn0 = scrEn0.zoomedCoords(screen.center, plane.zoom);
+            Point scrSt0 = ln.start.doubleScrCoords(basis);// scrSt0 = scrSt0.zoomedCoords(screen.center, plane.zoom);
+            Point scrEn0 = ln.end.doubleScrCoords(basis);//   scrEn0 = scrEn0.zoomedCoords(screen.center, plane.zoom);
             IntPair scrSt = new IntPair(Math.Round(scrSt0.x), Math.Round(scrSt0.y));
             IntPair scrEn = new IntPair(Math.Round(scrEn0.x), Math.Round(scrEn0.y));
             if ((scrSt.a >= 0 && scrSt.a <= screen.width && scrSt.b >= 0 && scrSt.b <= screen.height) ||
@@ -412,10 +409,10 @@ namespace VectorBasedLinesEngine
             if (isInScreen(basis, screen) && _color != null)
             {
                 System.Drawing.Pen pen = new System.Drawing.Pen(_color);
-                //IntPair st = ln.start.intScrCoords(basis);
-                //IntPair en = ln.end.intScrCoords(basis);
-                IntPair st = zoomedInScrPoint(ln.start, basis, screen);
-                IntPair en = zoomedInScrPoint(ln.end, basis, screen);
+                IntPair st = ln.start.intScrCoords(basis, screen);
+                IntPair en = ln.end.intScrCoords(basis, screen);
+                //IntPair st = zoomedInScrPoint(ln.start, basis, screen);
+                //IntPair en = zoomedInScrPoint(ln.end, basis, screen);
                 Line scrLn = new Line((double)st.a, (double)st.b, (double)en.a, (double)en.b);
                 gfx.DrawLine(pen,
                     (int)Math.Round(scrLn.start.x),
@@ -682,10 +679,10 @@ namespace VectorBasedLinesEngine
         private void drawOutlines(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
         {
             for (int i = 0; i < _side.Count(); i++)
-                //if (screen.upperSide.crosses(new Line(_side[i].start.doubleScrCoords(basis), _side[i].end.doubleScrCoords(basis))) ||
-                //    screen.bottomSide.crosses(new Line(_side[i].start.doubleScrCoords(basis), _side[i].end.doubleScrCoords(basis))) ||
-                //    screen.leftSide.crosses(new Line(_side[i].start.doubleScrCoords(basis), _side[i].end.doubleScrCoords(basis))) ||
-                //    screen.rightSide.crosses(new Line(_side[i].start.doubleScrCoords(basis), _side[i].end.doubleScrCoords(basis))) ||
+                //if (screen.upperSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
+                //    screen.bottomSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
+                //    screen.leftSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
+                //    screen.rightSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
                 //    screen.isPointInside(_side[i].start.doubleScrCoords(basis)) ||
                 //    screen.isPointInside(_side[i].end.doubleScrCoords(basis)))
                 if (_side[i].isInScreen(basis, screen))
@@ -699,12 +696,12 @@ namespace VectorBasedLinesEngine
                 System.Drawing.Point[] point = new System.Drawing.Point[_side.Count()];
                 for (int i = 0; i < _side.Count() - 1; i++)
                 {
-                    //IntPair pnt = new IntPair(_side[i].start.intScrCoords(basis));
-                    IntPair pnt = zoomedInScrPoint(_side[i].start, basis, screen);
+                    IntPair pnt = new IntPair(_side[i].start.intScrCoords(basis, screen));
+                    //IntPair pnt = zoomedInScrPoint(_side[i].start, basis, screen);
                     point[i] = new System.Drawing.Point(pnt.a, pnt.b);
                 }
-                //IntPair pnt0 = new IntPair(_side[_side.Count() - 1].start.intScrCoords(basis));
-                IntPair pnt0 = zoomedInScrPoint(_side[_side.Count() - 1].start, basis, screen);
+                IntPair pnt0 = new IntPair(_side[_side.Count() - 1].start.intScrCoords(basis, screen));
+                //IntPair pnt0 = zoomedInScrPoint(_side[_side.Count() - 1].start, basis, screen);
                 point[_side.Count() - 1] = new System.Drawing.Point(pnt0.a, pnt0.b);
                 //drawing the polygon
                 if (fillClrSet)
