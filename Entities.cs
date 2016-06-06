@@ -7,47 +7,47 @@ using System.Threading;
 
 namespace VectorBasedLinesEngine
 {
-    delegate void Action(Plane plane, Entity e);//in case you want to do some fancy stuff; yes the action can also have an effect on other entites
+    delegate void Action(Entity e);//in case you want to do some fancy stuff; yes the action can also have an effect on other entites
     abstract class Entity// : Drawable //generic entity, based on that you should be able to build points, lines, polygons or other stuff
     {
         //drawing methods
-        protected int _type;
-        public int typeAsInt { get { return _type; } }
-        protected Plane _plane;//the plane the entity belongs to
-        public Plane plane { get { return _plane; } }
-        protected int index;//index in the plane
-        protected IntPair[] section;//located in these sections; will be used when objects move
-        public bool moved;//if the entity has moved
-        public abstract void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id);
-        public void setIndexInPlane(int ind) { index = ind; }
-        public int indexInPlane() { return index; }
-        public abstract void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen);
-        protected abstract IntPair[] _locatedInSections(int sectorSize);//calculates which sections are the occupied section
-        public IntPair[] locatedInSections(int sectorSize)//sets and returns which sections are the occupied sections
-        {
-            section = _locatedInSections(sectorSize);
-            return section;
-        }
-        public IntPair[] locatedInSections() { return section; }
-        public void reCalcSects()
-        {
-            IntPair[] oldSect = section;
-            section = _locatedInSections(_plane.sectorSize());
-            _plane.changeEntitySections(index, section, oldSect);
-        }
-        //===============
+        //public abstract int drawableTypeAsInt { get; }
+        //public abstract string drawableType { get; }
+        //protected Plane bddplane; public Plane plane { get { return bddplane; } }//the plane the entity belongs to
+        //protected int bddindex; public int indexInPlane { get { return bddindex; } }//index in the plane
+        //protected IntPair[] bddsection;//located in these sections; will be used when objects move
+        //public bool moved;//if the entity has moved
+        //public void setIndexInPlane(int ind) { bddindex = ind; }
+        //public abstract void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen);
+        //public abstract void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id);
+        //protected abstract IntPair[] _locatedInSections(int sectorSize);//calculates which sections are the occupied
+        //public IntPair[] calcOccupiedSects(int sectorSize)//sets and returns which sections are the occupied sections
+        //{
+        //    bddsection = _locatedInSections(sectorSize);
+        //    return bddsection;
+        //}
+        //public IntPair[] locatedInSections() { return bddsection; }
+        //public void reCalcSects(int sectorSize)
+        //{
+        //    IntPair[] oldSect = bddsection;
+        //    bddsection = _locatedInSections(sectorSize);
+        //    bddplane.changeEntitySections(bddindex, bddsection, oldSect);
+        //}
+
+        //Entity specific methods
         public Action method;//the method, that is going to do fancy stuff
-       // private Object actionData;//data, that is going to be used by the action method
+        //private Object actionData;//data, that is going to be used by the action method
         private AutoResetEvent block;//to let the method make one cycle per frame
         private Thread thread;
         private int cycles;
         private bool _stopAction = false;
         public void stopAction() { _stopAction = true; }
-        public void setBlock(AutoResetEvent block) { this.block = block; }
+        //public void setBlock(AutoResetEvent block) { this.block = block; }
         public void setAction(Action method, int cycles, AutoResetEvent block)
         {
             this.method = method;
             this.cycles = cycles;
+            this.block = block;
             thread = new Thread(() => action());
         }
         public void launchAction()
@@ -57,16 +57,17 @@ namespace VectorBasedLinesEngine
         }
         private void action()
         {
+            if (block == null) throw new SystemException("Entity block is not set!");
             if (cycles >= 1)
                 for (int i = 0; i < cycles && _stopAction == false; i++)
                 {
-                    method(_plane, this);
+                    method(this);
                     block.WaitOne();
                 }
             else
                 while (_stopAction == false)
                 {
-                    method(_plane, this);
+                    method(this);
                     block.WaitOne();
                 }
         }
@@ -74,7 +75,7 @@ namespace VectorBasedLinesEngine
         public abstract string dataString();
         public abstract void copy(Entity e);//copies the properties of the argument entity
     }
-    class PointEntity : Entity
+    class PointEntity : Entity, Drawable
     {
         private Point _coords; public Point coordinates { get { return new Point(_coords.x, _coords.y); } }
         private System.Drawing.Color _color; public System.Drawing.Color color { get { return System.Drawing.Color.FromArgb(_color.A, _color.R, _color.G, _color.B); } }
@@ -89,8 +90,47 @@ namespace VectorBasedLinesEngine
             }
         }
         private System.Drawing.Bitmap _image;
-        public string typeAsString { get { return "stdPoint"; } }
-        public override void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
+        public override void copy(Entity e)
+        {
+            if (e is PointEntity)
+            {
+                PointEntity pe = (PointEntity)e;
+                this.setStuff(_color, pe.imageDir, pe.coordinates.x, pe.coordinates.y, pe.plane);
+            }
+            else
+                throw new ArgumentException("The entity requested for copying is not a Point based entity.");
+        }
+        //Drawable interface
+        private BasicDrawableData bdd;
+        public string drawableType { get { return "PointEntity"; } }
+        public int drawableTypeAsInt { get { return 1; } }
+        private bool isInScreen(int x, int y, ScreenData screen)
+        {
+            lock (_image)
+                if (_image != null)
+                {
+                    if (x >= 0 - _image.Width / 2 && x < screen.width + _image.Width / 2 &&
+                        y >= 0 - _image.Height / 2 && y < screen.height + _image.Height / 2)
+                        return true;
+                }
+                else
+                    return screen.isPointInside(_coords);
+            return false;
+        }
+        public void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
+        {
+            IntPair res = _coords.intScrCoords(basis, screen);
+            lock (_image)
+                if (isInScreen(res.a, res.b, screen))
+                    if (_image != null)
+                        gfx.DrawImage(_image,
+                            res.a - _image.Width / 2,
+                            res.b - _image.Height / 2,
+                            _image.Width, _image.Height);//plus half of the height and width of the image to place the point in the center of the image
+                    else
+                        gfx.DrawLine(new System.Drawing.Pen(_color), res, new System.Drawing.Point(res.a + 1, res.b + 1));
+        }
+        public void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
         {
             //IntPair res = zoomedInScrPoint(_coords, basis, screen);
             IntPair res = _coords.intScrCoords(basis, screen);
@@ -107,109 +147,11 @@ namespace VectorBasedLinesEngine
                             new System.Drawing.SolidBrush(System.Drawing.Color.Black),
                             res.a, res.b + 12);
         }
-        public override void copy(Entity e)
-        {
-            if (e.typeAsInt == _type)
-            {
-                PointEntity pe = (PointEntity)e;
-                this.setStuff(_color, pe.imageDir, pe.coordinates.x, pe.coordinates.y, pe.plane);
-            }
-            else
-                throw new ArgumentException("The entity requested for copying is not a Point based entity.");
-        }
-        //==============================================================================================
-        private void setStuff(System.Drawing.Color color, string image, double x, double y, Plane plane)
-        {
-            _type = 0;
-            this._plane = plane;
-            _coords = new Point();
-            _coords.setCoords(x, y);
-            imageDir = image;
-            _color = color;
-        }
-        public PointEntity(Plane plane){
-            setStuff(System.Drawing.Color.FromArgb(0, 0, 0), null,  0, 0, plane); }
-        public PointEntity(System.Drawing.Color color, Plane plane){
-            setStuff(color, null, 0, 0, plane); }
-        public PointEntity(string image, Plane plane)
-        {
-            if (image[0] != '|')
-                setStuff(System.Drawing.Color.FromArgb(0, 0, 0), image, 0, 0, plane);
-            else
-                stringConstructor(image, plane);
-        }
-        public PointEntity(double x, double y, Plane plane){
-            setStuff(System.Drawing.Color.FromArgb(0, 0, 0), null, x, y, plane); }
-        public PointEntity(System.Drawing.Color color, double x, double y, Plane plane){
-            setStuff(color, null, x, y, plane); }
-        public PointEntity(string image, double x, double y, Plane plane){
-            setStuff(System.Drawing.Color.FromArgb(0, 0, 0), image, x, y, plane); }
-        public PointEntity(System.Drawing.Color color, string image, IntPair c, Plane plane){
-            setStuff(color, image, c.a, c.b, plane); }
-        private void stringConstructor(string data, Plane plane)
-        {
-            //throw new NotImplementedException();
-            _type = 0;
-            char[] ignoreChar = { '|' };
-            string[] dataSect = data.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-            if (dataSect[0].Equals(_type.ToString()) == false) throw new ArgumentException("Invalid data input for PointEntity.");
-            //|type|coord X,coord Y|alpha,red,green,blue|image dir|
-            char[] ignoreChar0 = { ' ' };
-            //coordinates
-            string[] coordData = dataSect[1].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
-            DoublePair coords = new DoublePair(Convert.ToDouble(coordData[0]), Convert.ToDouble(coordData[1]));
-            //color
-            string[] colorData = dataSect[2].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
-            System.Drawing.Color clr = System.Drawing.Color.FromArgb(
-                Convert.ToInt32(colorData[0]), Convert.ToInt32(colorData[1]),
-                Convert.ToInt32(colorData[2]), Convert.ToInt32(colorData[3]));
-            //image is dataSect[3]
-            setStuff(clr, dataSect[3], coords.a, coords.b, plane);
-        }
-        public override string dataString()
-        {
-            //|type|coordX coordY|alpha red green blue|imageDir|
-            return "|" + _type + '|' + _coords.x + ' ' + _coords.y + '|' + _color.A + ' ' + _color.R + ' ' + _color.G + ' ' + _color.B + '|' + imgDir + '|';
-        }
-        //==============================================================================================
-        public void setCoords(double x, double y)
-        {
-            _coords.x = x;
-            _coords.y = y;
-            moved = true;
-        }
-        public void setColor(System.Drawing.Color color) { _color = color; }
-        //==============================================================================================
-        private bool isInScreen(int x, int y, ScreenData screen)
-        {
-            lock (_image)
-                if (_image != null)
-                {
-                    if (x >= 0 - _image.Width / 2 && x < screen.width + _image.Width / 2 &&
-                        y >= 0 - _image.Height / 2 && y < screen.height + _image.Height / 2)
-                        return true;
-                }
-                else
-                    return screen.isPointInside(_coords);
-            return false;
-        }
-        public override void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
-        {
-            IntPair res = _coords.intScrCoords(basis, screen);
-            //IntPair res = zoomedInScrPoint(_coords, basis, screen);
-            int resx = res.a;
-            int resy = res.b;
-            lock (_image)
-                if (isInScreen(resx, resy, screen))
-                    if (_image != null)
-                        gfx.DrawImage(_image,
-                            resx - _image.Width / 2,
-                            resy - _image.Height / 2,
-                            _image.Width, _image.Height);//plus half of the height and width of the image to place the point in the center of the image
-                    else
-                        gfx.DrawLine(new System.Drawing.Pen(_color), resx, resy, resx + 1, resy + 1);
-        }
-        protected override IntPair[] _locatedInSections(int sectorSize)
+        public Plane plane { get { return bdd.plane; } }//the plane the entity belongs to
+        public IntPair[] section { get { return bdd.section; } }//located in these sections; will be used when objects move
+        public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }//if the entity has moved
+        public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        protected IntPair[] _locatedInSections(int sectorSize)
         {
             IntPair intCoords = new IntPair((int)_coords.x, (int)_coords.y);//coordinates in int, a few pixels difference is not going to make much of a difference
             List<IntPair> res0 = new List<IntPair>();
@@ -268,8 +210,81 @@ namespace VectorBasedLinesEngine
                 res[i] = res0[i];
             return res;
         }
+        public IntPair[] calcOccupiedSects(int sectorSize)
+        {
+            bdd.section = _locatedInSections(sectorSize);
+            return bdd.section;
+        }//calculates which sections are the occupied
+        public void reCalcSects(int sectorSize)
+        {
+            IntPair[] oldSect = bdd.section;
+            bdd.section = _locatedInSections(sectorSize);
+            bdd.plane.changeEntitySections(bdd.indexInPlane, bdd.section, oldSect);
+        }
+        public IntPair[] locatedInSections { get { return bdd.section; } }
+        //==============================================================================================
+        private void setStuff(System.Drawing.Color color, string image, double x, double y, Plane plane)
+        {
+            bdd = new BasicDrawableData();
+            bdd.plane = plane;
+            _coords = new Point();
+            _coords.setCoords(x, y);
+            imageDir = image;
+            _color = color;
+        }
+        public PointEntity(Plane plane){
+            setStuff(System.Drawing.Color.FromArgb(0, 0, 0), null,  0, 0, plane); }
+        public PointEntity(System.Drawing.Color color, Plane plane){
+            setStuff(color, null, 0, 0, plane); }
+        public PointEntity(string image, Plane plane)
+        {
+            if (image[0] != '|')
+                setStuff(System.Drawing.Color.FromArgb(0, 0, 0), image, 0, 0, plane);
+            else
+                stringConstructor(image, plane);
+        }
+        public PointEntity(double x, double y, Plane plane){
+            setStuff(System.Drawing.Color.FromArgb(0, 0, 0), null, x, y, plane); }
+        public PointEntity(System.Drawing.Color color, double x, double y, Plane plane){
+            setStuff(color, null, x, y, plane); }
+        public PointEntity(string image, double x, double y, Plane plane){
+            setStuff(System.Drawing.Color.FromArgb(0, 0, 0), image, x, y, plane); }
+        public PointEntity(System.Drawing.Color color, string image, IntPair c, Plane plane){
+            setStuff(color, image, c.a, c.b, plane); }
+        private void stringConstructor(string data, Plane plane)
+        {
+            char[] ignoreChar = { '|' };
+            string[] dataSect = data.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+            if (dataSect[0].Equals(drawableTypeAsInt.ToString()) == false) throw new ArgumentException("Invalid data input for PointEntity.");
+            //|type|coord X,coord Y|alpha,red,green,blue|image dir|
+            char[] ignoreChar0 = { ' ' };
+            //coordinates
+            string[] coordData = dataSect[1].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
+            DoublePair coords = new DoublePair(Convert.ToDouble(coordData[0]), Convert.ToDouble(coordData[1]));
+            //color
+            string[] colorData = dataSect[2].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
+            System.Drawing.Color clr = System.Drawing.Color.FromArgb(
+                Convert.ToInt32(colorData[0]), Convert.ToInt32(colorData[1]),
+                Convert.ToInt32(colorData[2]), Convert.ToInt32(colorData[3]));
+            //image is dataSect[3]
+            setStuff(clr, dataSect[3], coords.a, coords.b, plane);
+        }
+        public override string dataString()
+        {
+            //|type|coordX coordY|alpha red green blue|imageDir|
+            return "|" + drawableTypeAsInt.ToString() + '|' + _coords.x + ' ' + _coords.y + '|' + _color.A + ' ' + _color.R + ' ' + _color.G + ' ' + _color.B + '|' + imgDir + '|';
+        }
+        //==============================================================================================
+        public void setCoords(double x, double y)
+        {
+            _coords.x = x;
+            _coords.y = y;
+            bdd.moved = true;
+        }
+        public void setColor(System.Drawing.Color color) { _color = color; }
+        //==============================================================================================
     }
-    class LineEntity : Entity
+    class LineEntity : Entity, Drawable
     {
         private Line ln; public Line lineCoords { get { return new Line(ln.start, ln.end); } }
         public Point start
@@ -289,15 +304,46 @@ namespace VectorBasedLinesEngine
             }
         }
         private System.Drawing.Color _color; public System.Drawing.Color color { get { return System.Drawing.Color.FromArgb(_color.A, _color.R, _color.G, _color.B); } }
-        //for a line with an image, use a polygon based entity, or an entity that uses the polygon algorithm for the "_locatedInSections(int)" method
-        public override void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
+        //Drawable interface
+        private BasicDrawableData bdd;
+        public string drawableType { get { return "LineEntity"; } }
+        public int drawableTypeAsInt { get { return 2; } }
+        public bool isInScreen(Basis basis, ScreenData screen)
+        {
+            Point scrSt0 = ln.start.doubleScrCoords(basis);// scrSt0 = scrSt0.zoomedCoords(screen.center, plane.zoom);
+            Point scrEn0 = ln.end.doubleScrCoords(basis);//   scrEn0 = scrEn0.zoomedCoords(screen.center, plane.zoom);
+            IntPair scrSt = new IntPair(Math.Round(scrSt0.x), Math.Round(scrSt0.y));
+            IntPair scrEn = new IntPair(Math.Round(scrEn0.x), Math.Round(scrEn0.y));
+            if ((scrSt.a >= 0 && scrSt.a <= screen.width && scrSt.b >= 0 && scrSt.b <= screen.height) ||
+                (scrEn.a >= 0 && scrEn.a <= screen.width && scrEn.b >= 0 && scrEn.b <= screen.height))
+                return true;//if one of the ends is visible by the screen
+            Line scrLn = new Line(scrSt.a, scrSt.b, scrEn.a, scrEn.b);
+            Line left = new Line(screen.upLeftCorner, screen.downLeftCorner);
+            Line right = new Line(screen.downRightCorner, screen.upRightCorner);
+            Line up = new Line(screen.upRightCorner, screen.upLeftCorner);
+            Line down = new Line(screen.downRightCorner, screen.downLeftCorner);
+            if (scrLn.crosses(left)) return true;
+            if (scrLn.crosses(right)) return true;
+            if (scrLn.crosses(up)) return true;
+            if (scrLn.crosses(down)) return true;
+            return false;
+        }
+        public void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
+        {
+            if (isInScreen(basis, screen) && _color != null)
+            {
+                System.Drawing.Pen pen = new System.Drawing.Pen(_color);
+                DoublePair st = ln.start.doubleScrCoords(basis);
+                DoublePair en = ln.end.doubleScrCoords(basis);
+                gfx.DrawLine(pen, st, en);
+            }
+        }
+        public void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
         {
             System.Drawing.Pen pen = new System.Drawing.Pen(_color);
             IntPair st = ln.start.intScrCoords(basis, screen);
             IntPair en = ln.end.intScrCoords(basis, screen);
-            //IntPair st = zoomedInScrPoint(ln.start, basis, screen);
-            //IntPair en = zoomedInScrPoint(ln.end, basis, screen);
-            Line scrLn = new Line((double)st.a, (double)st.b, (double)en.a, (double)en.b);
+            //Line scrLn = new Line((double)st.a, (double)st.b, (double)en.a, (double)en.b);
             //scrLn = scrLn.lineToDraw(basis, screen);
             //gfx.DrawString(_color.A + " " + _color.R + " " + _color.G + " " + _color.B,
             //        new System.Drawing.Font("Consolas", 12),
@@ -316,8 +362,8 @@ namespace VectorBasedLinesEngine
                     new System.Drawing.SolidBrush(System.Drawing.Color.Gray),
                     st.a, st.b);
             String sections = "";
-            for (int i = 0; i < section.Count(); i++)
-                sections += section[i].a + "-" + section[i].b + ";";
+            for (int i = 0; i < bdd.section.Count(); i++)
+                sections += bdd.section[i].a + "-" + bdd.section[i].b + ";";
             gfx.DrawString(sections,
                     new System.Drawing.Font("Consolas", 12),
                     new System.Drawing.SolidBrush(_color),
@@ -325,113 +371,17 @@ namespace VectorBasedLinesEngine
             gfx.DrawLine(new System.Drawing.Pen(_color), st.a + 3, st.b + 3, st.a - 3, st.b - 3);
             gfx.DrawLine(new System.Drawing.Pen(_color), en.a + 3, en.b + 3, en.a - 3, en.b - 3);
         }
-        public override void copy(Entity e)
-        {
-            if (e.typeAsInt == _type)
-            {
-                LineEntity le = (LineEntity)e;
-                setStuff(start.doubleCoords, end.doubleCoords, _color, _plane);
-            }
-            else
-                throw new ArgumentException("The entity requested for copying is not a Line based entity.");
-        }
-        //==============================================================================================
-        public void setColor(System.Drawing.Color color) {_color = color; }
-        public void setStartCoords(double x, double y) { ln.setStart(x, y); moved = true; }
-        public void setEndCoords(double x, double y) { ln.setEnd(x, y); moved = true; }
-        private void setStuff(DoublePair st, DoublePair en, System.Drawing.Color clr, Plane plane)
-        {
-            _type = 1;
-            this._plane = plane;
-            ln = new Line(st.a, st.b, en.a, en.b);
-            _color = clr;
-            //setImage(img);
-        }
-        public LineEntity(Plane plane){
-            setStuff(new IntPair(0, 0), new IntPair(0, 0), System.Drawing.Color.Black, plane); }
-        public LineEntity(DoublePair st, DoublePair en, Plane plane){
-            setStuff(st, en, System.Drawing.Color.Black, plane); }
-        public LineEntity(double stx, double sty, double enx, double eny, Plane plane){
-            setStuff(new DoublePair(stx, sty), new DoublePair(enx, eny), System.Drawing.Color.Black, plane); }
-        public LineEntity(System.Drawing.Color clr, DoublePair st, DoublePair en, Plane plane){
-            setStuff(st, en, clr, plane); }
-        public LineEntity(System.Drawing.Color clr, double stx, double sty, double enx, double eny, Plane plane){
-            setStuff(new DoublePair(stx, sty), new DoublePair(enx, eny), clr, plane); }
-        public LineEntity(string data, Plane plane)
-        {
-            //throw new NotImplementedException();
-            _type = 1;
-            char[] ignoreChar = { '|' };
-            string[] dataSect = data.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-            if (dataSect[0].Equals(_type.ToString()) == false) throw new ArgumentException("Invalid data input for LineEntity.");
-            //|type|startX startY|endX endY|alpha red green blue|
-            char[] ignoreChar0 = { ' ' };
-            //coordinates
-            string[] stCor = dataSect[1].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
-            DoublePair st = new DoublePair(Convert.ToDouble(stCor[0]), Convert.ToDouble(stCor[1]));
-            string[] enCor = dataSect[2].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
-            DoublePair en = new DoublePair(Convert.ToDouble(enCor[0]), Convert.ToDouble(enCor[1]));
-            //color
-            string[] colorData = dataSect[3].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
-            System.Drawing.Color clr = System.Drawing.Color.FromArgb(
-                Convert.ToInt32(colorData[0]), Convert.ToInt32(colorData[1]),
-                Convert.ToInt32(colorData[2]), Convert.ToInt32(colorData[3]));
-            setStuff(st, en, clr, plane);
-        }
-        public override string dataString()
-        {
-            //|type|startX startY|endX endY|alpha red green blue|
-            return "|" + _type + '|' + ln.start.x + ' ' + ln.start.y + '|' + ln.end.x + ' ' + ln.end.y + '|' + _color.A + ' ' + _color.R + ' ' + _color.G + ' ' + _color.B + '|';
-        }
-        //==============================================================================================
-        public bool isInScreen(Basis basis, ScreenData screen)
-        {
-            Point scrSt0 = ln.start.doubleScrCoords(basis);// scrSt0 = scrSt0.zoomedCoords(screen.center, plane.zoom);
-            Point scrEn0 = ln.end.doubleScrCoords(basis);//   scrEn0 = scrEn0.zoomedCoords(screen.center, plane.zoom);
-            IntPair scrSt = new IntPair(Math.Round(scrSt0.x), Math.Round(scrSt0.y));
-            IntPair scrEn = new IntPair(Math.Round(scrEn0.x), Math.Round(scrEn0.y));
-            if ((scrSt.a >= 0 && scrSt.a <= screen.width && scrSt.b >= 0 && scrSt.b <= screen.height) ||
-                (scrEn.a >= 0 && scrEn.a <= screen.width && scrEn.b >= 0 && scrEn.b <= screen.height))
-                return true;//if one of the ends is visible by the screen
-            Line scrLn = new Line(scrSt.a, scrSt.b, scrEn.a, scrEn.b);
-            Line left =  new Line(screen.upLeftCorner,    screen.downLeftCorner);
-            Line right = new Line(screen.downRightCorner, screen.upRightCorner);
-            Line up =    new Line(screen.upRightCorner,   screen.upLeftCorner);
-            Line down =  new Line(screen.downRightCorner, screen.downLeftCorner);
-            if (scrLn.crosses(left)) return true;
-            if (scrLn.crosses(right)) return true;
-            if (scrLn.crosses(up)) return true;
-            if (scrLn.crosses(down)) return true;
-            return false;
-        }
-        public override void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
-        {
-            if (isInScreen(basis, screen) && _color != null)
-            {
-                System.Drawing.Pen pen = new System.Drawing.Pen(_color);
-                IntPair st = ln.start.intScrCoords(basis, screen);
-                IntPair en = ln.end.intScrCoords(basis, screen);
-                //IntPair st = zoomedInScrPoint(ln.start, basis, screen);
-                //IntPair en = zoomedInScrPoint(ln.end, basis, screen);
-                Line scrLn = new Line((double)st.a, (double)st.b, (double)en.a, (double)en.b);
-                gfx.DrawLine(pen,
-                    (int)Math.Round(scrLn.start.x),
-                    (int)Math.Round(scrLn.start.y),
-                    (int)Math.Round(scrLn.end.x),
-                    (int)Math.Round(scrLn.end.y));
-            }
-        }
         private Line sectionSideLine(IntPair sect, char verhor, int dir, int sectSize)
         {
             char side;//determining which side is going to be checked
             if (verhor == 'h')//vertical or horizontal
-                if      (dir < 0) side = 'l';
+                if (dir < 0) side = 'l';
                 else if (dir > 0) side = 'r';
-                else    side = 'n';
+                else side = 'n';
             else if (verhor == 'v')
-                if      (dir < 0) side = 'u';
+                if (dir < 0) side = 'u';
                 else if (dir > 0) side = 'd';
-                else    side = 'n';
+                else side = 'n';
             else
             { throw new System.Exception("Invalid direction passed as argument!"); }//try not to put arguments, that can allow the program to set the dir variable to 'n'
             //and it is returned as a Line entity to use the Line.crosses() method
@@ -461,7 +411,11 @@ namespace VectorBasedLinesEngine
                     (sect.b + 1) * sectSize);
             else return null;//will cause problems on purpose; I will have to learn how to make custom exceptions
         }
-        protected override IntPair[] _locatedInSections(int sectorSize)
+        public Plane plane { get { return bdd.plane; } }//the plane the entity belongs to
+        public IntPair[] section { get { return bdd.section; } }//located in these sections; will be used when objects move
+        public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }//if the entity has moved
+        public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        private IntPair[] _locatedInSections(int sectorSize)
         {
             IntPair sts = new IntPair((int)ln.start.x / sectorSize, (int)ln.start.y / sectorSize);//start section
             IntPair ens = new IntPair((int)ln.end.x / sectorSize, (int)ln.end.y / sectorSize);//end section
@@ -487,7 +441,7 @@ namespace VectorBasedLinesEngine
                                  Math.Min(Math.Abs(sts.a - ens.a), Math.Abs(sts.b - ens.b)) + 1;//and add the number of colums/rows
             if (passedSections == 1)//it will be 1 if the starting and ending sections are the same
             {
-                IntPair[]  res = new IntPair[passedSections];
+                IntPair[] res = new IntPair[passedSections];
                 res[0] = new IntPair(sts.a, sts.b);
                 return res;
             }
@@ -496,7 +450,7 @@ namespace VectorBasedLinesEngine
             for (int i = 0; i < passedSections; i++)
             {
                 if (crrSect.a >= 0 && crrSect.b >= 0)//Refer to Large comment #1
-                res0.Add(new IntPair(crrSect));//from this section it is cheked which is the next passed section
+                    res0.Add(new IntPair(crrSect));//from this section it is cheked which is the next passed section
                 if (verDir != 0 && ln.crosses(sectionSideLine(crrSect, 'v', verDir, sectorSize)))
                     crrSect.b += verDir;
                 else if (horDir != 0 && ln.crosses(sectionSideLine(crrSect, 'h', horDir, sectorSize)))
@@ -508,32 +462,231 @@ namespace VectorBasedLinesEngine
                 { throw new System.Exception("Section with negative coordinates!"); }
             return res0.ToArray();
         }
+        public IntPair[] calcOccupiedSects(int sectorSize)
+        {
+            bdd.section = _locatedInSections(sectorSize);
+            return bdd.section;
+        }//calculates which sections are the occupied
+        public void reCalcSects(int sectorSize)
+        {
+            IntPair[] oldSect = bdd.section;
+            bdd.section = _locatedInSections(sectorSize);
+            bdd.plane.changeEntitySections(bdd.indexInPlane, bdd.section, oldSect);
+        }
+        public IntPair[] locatedInSections { get { return bdd.section; } }
+        //for a line with an image, use a polygon based entity, or an entity that uses the polygon algorithm for the "_locatedInSections(int)" method
+        public override void copy(Entity e)
+        {
+            LineEntity le = e as LineEntity;
+            if (le != null)
+            {
+                setStuff(start.doubleCoords, end.doubleCoords, _color, bdd.plane);
+            }
+            else
+                throw new ArgumentException("The entity requested for copying is not a Line based entity.");
+        }
+        //==============================================================================================
+        public void setColor(System.Drawing.Color color) {_color = color; }
+        public void setStartCoords(double x, double y) { ln.setStart(x, y); bdd.moved = true; }
+        public void setEndCoords(double x, double y) { ln.setEnd(x, y); bdd.moved = true; }
+        private void setStuff(DoublePair st, DoublePair en, System.Drawing.Color clr, Plane plane)
+        {
+            bdd = new BasicDrawableData();
+            bdd.plane = plane;
+            ln = new Line(st.a, st.b, en.a, en.b);
+            _color = clr;
+            //setImage(img);
+        }
+        public LineEntity(Plane plane){
+            setStuff(new IntPair(0, 0), new IntPair(0, 0), System.Drawing.Color.Black, plane); }
+        public LineEntity(DoublePair st, DoublePair en, Plane plane){
+            setStuff(st, en, System.Drawing.Color.Black, plane); }
+        public LineEntity(double stx, double sty, double enx, double eny, Plane plane){
+            setStuff(new DoublePair(stx, sty), new DoublePair(enx, eny), System.Drawing.Color.Black, plane); }
+        public LineEntity(System.Drawing.Color clr, DoublePair st, DoublePair en, Plane plane){
+            setStuff(st, en, clr, plane); }
+        public LineEntity(System.Drawing.Color clr, double stx, double sty, double enx, double eny, Plane plane){
+            setStuff(new DoublePair(stx, sty), new DoublePair(enx, eny), clr, plane); }
+        public LineEntity(string data, Plane plane)
+        {
+            char[] ignoreChar = { '|' };
+            string[] dataSect = data.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
+            if (dataSect[0].Equals(drawableTypeAsInt.ToString()) == false) throw new ArgumentException("Invalid data input for LineEntity.");
+            //|type|startX startY|endX endY|alpha red green blue|
+            char[] ignoreChar0 = { ' ' };
+            //coordinates
+            string[] stCor = dataSect[1].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
+            DoublePair st = new DoublePair(Convert.ToDouble(stCor[0]), Convert.ToDouble(stCor[1]));
+            string[] enCor = dataSect[2].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
+            DoublePair en = new DoublePair(Convert.ToDouble(enCor[0]), Convert.ToDouble(enCor[1]));
+            //color
+            string[] colorData = dataSect[3].Split(ignoreChar0, StringSplitOptions.RemoveEmptyEntries);
+            System.Drawing.Color clr = System.Drawing.Color.FromArgb(
+                Convert.ToInt32(colorData[0]), Convert.ToInt32(colorData[1]),
+                Convert.ToInt32(colorData[2]), Convert.ToInt32(colorData[3]));
+            setStuff(st, en, clr, plane);
+        }
+        public override string dataString()
+        {
+            //|type|startX startY|endX endY|alpha red green blue|
+            return "|" + drawableTypeAsInt.ToString() + '|' + ln.start.x + ' ' + ln.start.y + '|' + ln.end.x + ' ' + ln.end.y + '|' + _color.A + ' ' + _color.R + ' ' + _color.G + ' ' + _color.B + '|';
+        }
+        //==============================================================================================
     }
-    class PolygonEntity : Entity
+    class PolygonEntity : Entity, Drawable
     {
         private bool _filled; public bool filled { get { return _filled; } }
         private System.Drawing.Color _fillColor; public System.Drawing.Color fillColor { get { return System.Drawing.Color.FromArgb(_fillColor.A, _fillColor.R, _fillColor.G, _fillColor.B); } }
         private bool fillClrSet = false;
-        //private int _fillStyle; public int fillStyle { get { return _fillStyle; } }//0 - simple fill; 1 - no outlines I may add more styles with a single color, but we will see
         private System.Drawing.Bitmap _image;
         private bool imageSet = false;
-        //private int _texStyle; public int textureStyle { get { return _texStyle; } }//Refer to Texture Styles Info for information
         private string imgDir; public string imageLocation { get { return string.Copy(imgDir); } }
+        //Drawable interface
+        private BasicDrawableData bdd;
+        public string drawableType { get { return "PolygonEntity"; } }
+        public int drawableTypeAsInt { get { return 3; } }
+        private void drawOutlines(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
+        {
+            for (int i = 0; i < _side.Count(); i++)
+                if (_side[i].isInScreen(basis, screen))
+                    _side[i].draw(gfx, basis, screen);
+        }
+        public void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
+        {
+            if (_filled)
+            {
+                //building polygon
+                System.Drawing.Point[] point = new System.Drawing.Point[_side.Count()];
+                for (int i = 0; i < _side.Count() - 1; i++)
+                {
+                    IntPair pnt = new IntPair(_side[i].start.intScrCoords(basis, screen));
+                    point[i] = new System.Drawing.Point(pnt.a, pnt.b);
+                }
+                IntPair pnt0 = new IntPair(_side[_side.Count() - 1].start.intScrCoords(basis, screen));
+                point[_side.Count() - 1] = new System.Drawing.Point(pnt0.a, pnt0.b);
+                //drawing the polygon
+                if (fillClrSet)
+                    gfx.FillPolygon(new System.Drawing.SolidBrush(_fillColor), point);
+                else if (imageSet)
+                {
+                    System.Drawing.TextureBrush tb = new System.Drawing.TextureBrush(_image);
+                    drawOutlines(gfx, basis, screen);
+                    gfx.FillPolygon(new System.Drawing.TextureBrush(_image), point);
+                }
+            }
+            else
+                drawOutlines(gfx, basis, screen);
+        }
+        public void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
+        {
+            for (int i = 0; i < _side.Count(); i++)
+                _side[i].drawInfo(gfx, basis, screen, id);
+        }
+        public Plane plane { get { return bdd.plane; } }//the plane the entity belongs to
+        public IntPair[] section { get { return bdd.section; } }//located in these sections; will be used when objects move
+        public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }//if the entity has moved
+        public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        private void setOuterInnerCells(int[][] cell, int cr, int cc, Cluster cluster)//cell row; cell colum
+        {
+            if (cell[cr][cc] == 0)
+            {
+                cell[cr][cc] = 1;
+                cluster.cellr.Add(cr);
+                cluster.cellc.Add(cc);
+                if (cr + 1 < cell.Count()) setOuterInnerCells(cell, cr + 1, cc, cluster);
+                else cluster.inner = false;
+                if (cc + 1 < cell[cr].Count()) setOuterInnerCells(cell, cr, cc + 1, cluster);
+                else cluster.inner = false;
+                if (cr - 1 > -1) setOuterInnerCells(cell, cr - 1, cc, cluster);
+                else cluster.inner = false;
+                if (cc - 1 > -1) setOuterInnerCells(cell, cr, cc - 1, cluster);
+                else cluster.inner = false;
+            }
+            if (cluster.inner == false)
+            {
+                for (int i = 0; i < cluster.cellc.Count; i++)
+                    cell[cluster.cellr[i]][cluster.cellc[i]] = -1;
+            }
+        }
+        protected IntPair[] _locatedInSections(int sectorSize)
+        {
+            if (filled)
+            {//if the polygon is filled
+                int lowerCol = -1;//the lowest and highest (by value) colums and rows, which are occupied by the polygon
+                int lowerRow = -1;//set as -1, because there are no sections with such coordinates
+                int higherCol = -1;
+                int higherRow = -1;
+                SortedSet<IntPair> sect = new SortedSet<IntPair>();
+                for (int i = 0; i < _side.Count(); i++)
+                {
+                    IntPair[] sip = _side[i].calcOccupiedSects(sectorSize);
+                    if (lowerCol == -1 || lowerRow == -1 || higherCol == -1 || higherRow == -1)
+                    {//setting initial values
+                        lowerCol = sip[0].a;
+                        lowerRow = sip[0].b;
+                        higherCol = sip[0].a;
+                        higherRow = sip[0].b;
+                    }
+                    for (int l = 0; l < sip.Count(); l++)
+                    {//finding the colums and rows
+                        if (sip[l].a < lowerCol) lowerCol = sip[l].a;
+                        if (sip[l].b < lowerRow) lowerRow = sip[l].b;
+                        if (sip[l].a > higherCol) higherCol = sip[l].a;
+                        if (sip[l].b > higherRow) higherRow = sip[l].b;
+                        sect.Add(sip[l]);
+                    }
+                }
+                int rows = higherRow - lowerRow + 1;
+                int cols = higherCol - lowerCol + 1;
+                int[][] sectOccVal = new int[rows][];//section occupation value: 2 - occupied and added; 1 - newly found occupied; 0 - potentially occupied; -1 - not occupied
+                for (int i = 0; i < sectOccVal.Count(); i++) sectOccVal[i] = new int[cols];
+                foreach (IntPair ip in sect)//creating a table
+                    sectOccVal[ip.a][ip.b] = 2;
+                for (int r = 0; r < sectOccVal.Count(); r++)
+                    for (int c = 0; c < sectOccVal[r].Count(); c++)
+                        if (sectOccVal[r][c] == 0)
+                            setOuterInnerCells(sectOccVal, r, c, new Cluster());
+                for (int r = 0; r < sectOccVal.Count(); r++)
+                    for (int c = 0; c < sectOccVal[r].Count(); c++)
+                        if (sectOccVal[r][c] == 1)
+                            sect.Add(new IntPair(c + lowerCol, r + lowerRow));
+                return sect.ToArray();
+            }
+            //if the polygon is not filled
+            SortedSet<IntPair> sections = new SortedSet<IntPair>();
+            for (int i = 0; i < _side.Count(); i++)
+            {
+                IntPair[] sip = _side[i].calcOccupiedSects(sectorSize);
+                for (int l = 0; l < sip.Count(); l++)
+                    sections.Add(sip[l]);
+            }
+            return sections.ToArray();
+        }
+        public IntPair[] calcOccupiedSects(int sectorSize)
+        {
+            bdd.section = _locatedInSections(sectorSize);
+            return bdd.section;
+        }//calculates which sections are the occupied
+        public void reCalcSects(int sectorSize)
+        {
+            IntPair[] oldSect = bdd.section;
+            bdd.section = _locatedInSections(sectorSize);
+            bdd.plane.changeEntitySections(bdd.indexInPlane, bdd.section, oldSect);
+        }
+        public IntPair[] locatedInSections { get { return bdd.section; } }
         //==============================================================================================
         private void setStuff(DoublePair[] point, System.Drawing.Color[] lnClr,
                               bool filled, System.Drawing.Color fillColor, string imgDir, Plane plane)
         {
-            _type = 2;
             _filled = filled;
-            //_fillStyle = fillStyle;
             _fillColor = fillColor;
             if (filled == true && (imgDir == null || imgDir.Equals("null")))
                 fillClrSet = true;
-            //_texStyle = texStyle;
             setImage(imgDir);
             if (imgDir != null && imgDir.Equals("null") == true && _filled == true)
                 imageSet = true;
-            _plane = plane;
+            bdd = new BasicDrawableData();
+            bdd.plane = plane;
             _side = new LineEntity[point.Count()];
             for (int i = 0; i < point.Count() - 1; i++)//building the sides
                 _side[i] = new LineEntity(point[i], point[i + 1], plane);
@@ -567,11 +720,9 @@ namespace VectorBasedLinesEngine
             setStuff(point, lnClr, true, fillColor, imgDir, plane); }
         public PolygonEntity(string data, Plane plane)
         {
-            //throw new NotImplementedException();
-            _type = 2;
             char[] ignoreChar = { '|' };
             string[] dataSect = data.Split(ignoreChar, StringSplitOptions.RemoveEmptyEntries);
-            if (dataSect[0].Equals(_type.ToString()) == false) throw new ArgumentException("Invalid data input for PolygonEntity.");
+            if (dataSect[0].Equals(drawableTypeAsInt.ToString()) == false) throw new ArgumentException("Invalid data input for PolygonEntity.");
             //|type|point0; ... ;pointN|side0Color; ... ;sideNColor|isFilled|imadeDir|fillClrA fillClrR fillClrG fillClrB|
             //pointN is written as "pointNX pointNY"
             //sideNColor is written as "sideNColorA sideNColorR sideNColorG sideNColorB"
@@ -606,7 +757,6 @@ namespace VectorBasedLinesEngine
         }
         public override string dataString()
         {
-            //throw new NotImplementedException();
             //|type|point0; ... ;pointN|side0Color; ... ;sideNColor|isFilled|imadeDir|fillClrA fillClrR fillClrG fillClrB|
             //pointN is written as "pointNX pointNY"
             //sideNColor is written as "sideNColorA sideNColorR sideNColorG sideNColorB"
@@ -614,19 +764,15 @@ namespace VectorBasedLinesEngine
             //resArr[0] = _type.ToString();
             for (int i = 0; i < _side.Count(); i++ )
             {
-                if (i != _side.Count() - 1)
-                    resArr[0] += _side[i].start.x + " " + _side[i].start.y + ';';
-                else
-                    resArr[0] += _side[i].start.x + " " + _side[i].start.y;
+                if (i != _side.Count() - 1) resArr[0] += _side[i].start.x + " " + _side[i].start.y + ';';
+                else                        resArr[0] += _side[i].start.x + " " + _side[i].start.y;
             }
             for (int i = 0; i < _side.Count(); i++)
             {
-                if (i != _side.Count() - 1)
-                    resArr[1] += _side[i].color.A + " " + _side[i].color.R + " " + _side[i].color.G + " " + _side[i].color.B + ";";
-                else
-                    resArr[1] += _side[i].color.A + " " + _side[i].color.R + " " + _side[i].color.G + " " + _side[i].color.B;
+                if (i != _side.Count() - 1) resArr[1] += _side[i].color.A + " " + _side[i].color.R + " " + _side[i].color.G + " " + _side[i].color.B + ";";
+                else                        resArr[1] += _side[i].color.A + " " + _side[i].color.R + " " + _side[i].color.G + " " + _side[i].color.B;
             }
-            return "|" + _type + '|' + resArr[0] + '|' + resArr[1] + '|' +
+            return "|" + drawableTypeAsInt + '|' + resArr[0] + '|' + resArr[1] + '|' +
                 _filled + '|' + imgDir + '|' + _fillColor.A + ' ' + _fillColor.R + ' ' + _fillColor.G + ' ' + _fillColor.B + '|';
         }
         public void setImage(string img)
@@ -640,17 +786,11 @@ namespace VectorBasedLinesEngine
             }
         }
         //==============================================================================================
-        public override void drawInfo(System.Drawing.Graphics gfx, Basis basis, ScreenData screen, int id)
-        {
-            //throw new NotImplementedException();
-            for (int i = 0; i < _side.Count(); i++)
-                _side[i].drawInfo(gfx, basis, screen, id);
-        }
         public override void copy(Entity e)
         {
-            if (e.typeAsInt == _type)
+            PolygonEntity pe = e as PolygonEntity;
+            if (pe != null)
             {
-                PolygonEntity pe = (PolygonEntity)e;
                 setStuff(pe.point, pe.lineColor, pe.filled, pe.fillColor, pe.imageLocation, pe.plane);
             }
             else
@@ -676,49 +816,6 @@ namespace VectorBasedLinesEngine
                 return res;
             }
         }
-        private void drawOutlines(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
-        {
-            for (int i = 0; i < _side.Count(); i++)
-                //if (screen.upperSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
-                //    screen.bottomSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
-                //    screen.leftSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
-                //    screen.rightSide.crosses(new Line(_side[i].start.doubleScrCoords(basis, screen), _side[i].end.doubleScrCoords(basis, screen))) ||
-                //    screen.isPointInside(_side[i].start.doubleScrCoords(basis)) ||
-                //    screen.isPointInside(_side[i].end.doubleScrCoords(basis)))
-                if (_side[i].isInScreen(basis, screen))
-                _side[i].draw(gfx, basis, screen);
-        }
-        public override void draw(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
-        {
-            if (_filled)
-            {
-                //building polygon
-                System.Drawing.Point[] point = new System.Drawing.Point[_side.Count()];
-                for (int i = 0; i < _side.Count() - 1; i++)
-                {
-                    IntPair pnt = new IntPair(_side[i].start.intScrCoords(basis, screen));
-                    //IntPair pnt = zoomedInScrPoint(_side[i].start, basis, screen);
-                    point[i] = new System.Drawing.Point(pnt.a, pnt.b);
-                }
-                IntPair pnt0 = new IntPair(_side[_side.Count() - 1].start.intScrCoords(basis, screen));
-                //IntPair pnt0 = zoomedInScrPoint(_side[_side.Count() - 1].start, basis, screen);
-                point[_side.Count() - 1] = new System.Drawing.Point(pnt0.a, pnt0.b);
-                //drawing the polygon
-                if (fillClrSet)
-                {
-                    //if (_fillStyle == 0) drawOutlines(gfx, basis, screen);
-                    gfx.FillPolygon(new System.Drawing.SolidBrush(_fillColor), point);
-                }
-                else if (imageSet)
-                {
-                    System.Drawing.TextureBrush tb = new System.Drawing.TextureBrush(_image);
-                    drawOutlines(gfx, basis, screen);
-                    gfx.FillPolygon(new System.Drawing.TextureBrush(_image), point);
-                }
-            }
-            else
-                drawOutlines(gfx, basis, screen);
-        }
         private class Cluster//clusters of sections
         {
             public bool inner;
@@ -730,82 +827,6 @@ namespace VectorBasedLinesEngine
                 cellr = new List<int>();
                 cellc = new List<int>();
             }
-        }
-        private void setOuterInnerCells(int[][] cell, int cr, int cc, Cluster cluster)//cell row; cell colum
-        {
-            if (cell[cr][cc] == 0)
-            {
-                cell[cr][cc] = 1;
-                cluster.cellr.Add(cr);
-                cluster.cellc.Add(cc);
-                if (cr + 1 < cell.Count()) setOuterInnerCells(cell, cr + 1, cc, cluster);
-                else cluster.inner = false;
-                if (cc + 1 < cell[cr].Count()) setOuterInnerCells(cell, cr, cc + 1, cluster);
-                else cluster.inner = false;
-                if (cr - 1 > -1) setOuterInnerCells(cell, cr - 1, cc, cluster);
-                else cluster.inner = false;
-                if (cc - 1 > -1) setOuterInnerCells(cell, cr, cc - 1, cluster);
-                else cluster.inner = false;
-            }
-            if (cluster.inner == false)
-            {
-                for (int i = 0; i < cluster.cellc.Count; i++)
-                    cell[cluster.cellr[i]][cluster.cellc[i]] = -1;
-            }
-        }
-        protected override IntPair[] _locatedInSections(int sectorSize)
-        {
-            if (filled)
-            {//if the polygon is filled
-                int lowerCol = -1;//the lowest and highest (by value) colums and rows, which are occupied by the polygon
-                int lowerRow = -1;//set as -1, because there are no sections with such coordinates
-                int higherCol = -1;
-                int higherRow = -1;
-                SortedSet<IntPair> sect = new SortedSet<IntPair>();
-                for (int i = 0; i < _side.Count(); i++)
-                {
-                    IntPair[] sip = _side[i].locatedInSections(sectorSize);
-                    if (lowerCol == -1 || lowerRow == -1 || higherCol == -1 || higherRow == -1)
-                    {//setting initial values
-                        lowerCol = sip[0].a;
-                        lowerRow = sip[0].b;
-                        higherCol = sip[0].a;
-                        higherRow = sip[0].b;
-                    }
-                    for (int l = 0; l < sip.Count(); l++)
-                    {//finding the colums and rows
-                        if (sip[l].a < lowerCol) lowerCol = sip[l].a;
-                        if (sip[l].b < lowerRow) lowerRow = sip[l].b;
-                        if (sip[l].a > higherCol) higherCol = sip[l].a;
-                        if (sip[l].b > higherRow) higherRow = sip[l].b;
-                        sect.Add(sip[l]);
-                    }
-                }
-                int rows = higherRow - lowerRow + 1;
-                int cols = higherCol - lowerCol + 1;
-                int[][] sectOccVal = new int[rows][];//section occupation value: 2 - occupied and added; 1 - newly found occupied; 0 - potentially occupied; -1 - not occupied
-                for (int i = 0; i < sectOccVal.Count(); i++ ) sectOccVal[i] = new int[cols];
-                foreach (IntPair ip in sect)//creating a table
-                    sectOccVal[ip.a][ip.b] = 2;
-                for (int r = 0; r < sectOccVal.Count(); r++)
-                    for (int c = 0; c < sectOccVal[r].Count(); c++)
-                        if (sectOccVal[r][c] == 0)
-                            setOuterInnerCells(sectOccVal, r, c, new Cluster());
-                for (int r = 0; r < sectOccVal.Count(); r++)
-                    for (int c = 0; c < sectOccVal[r].Count(); c++)
-                        if (sectOccVal[r][c] == 1)
-                            sect.Add(new IntPair(c + lowerCol, r + lowerRow));
-                return sect.ToArray();
-            }
-            //if the polygon is not filled
-            SortedSet<IntPair> sections = new SortedSet<IntPair>();
-            for (int i = 0; i < _side.Count(); i++)
-            {
-                IntPair[] sip = _side[i].locatedInSections(sectorSize);
-                for (int l = 0; l < sip.Count(); l++)
-                    sections.Add(sip[l]);
-            }
-            return sections.ToArray();
         }
         private LineEntity[] _side;//for adding and removing sides I may need to use a data structure, for now I will leave it like that
     }
@@ -831,14 +852,6 @@ namespace VectorBasedLinesEngine
     sections, that are potentially occupied. More specifically, sections (n1-1;n2) and (n1;n2-1) will confuse the program, causing it to miss
     a section, that is occupied by more than one ofe the line's pixels. By concept, a line cannot go through 4 neighbour sections (that are
     arranged in a square) at once, but the do-lines-cross algorithm will say otherwise (if the ends are the same, then the lines cross).
- */
-/*
-    Texture Styles Info:
-    0 - simple image fill as a texture: image stays stationary for the camera, draws outlines;
-    1 - stretch image to fill the polygon, draws outlines;
-    2 - simple image fill as a texture: image stays stationary for the camera, no outlines;
-    3 - stretch image to fill the polygon, no outlines;
-    I will be adding more.
  */
 /*if (screen.isPointInside(stp))
 {

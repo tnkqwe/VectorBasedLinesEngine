@@ -16,8 +16,6 @@ namespace VectorBasedLinesEngine
         Plane plane;
         System.Drawing.Graphics gfx;
         System.Drawing.Bitmap buffer;
-        //System.Drawing.Graphics screenDraw;
-        //System.Drawing.Bitmap scrDrawBuffer;
         bool isAntiAlias = false;
         int scrHeight;
         int scrWidth;
@@ -25,6 +23,8 @@ namespace VectorBasedLinesEngine
         int widthParts = 16;//it is also used when resizing the window
         int pixelsPerPart = 40;
         System.Diagnostics.Stopwatch timer;
+        List<System.Threading.AutoResetEvent> entBlock;
+        System.Threading.AutoResetEvent planeMoveBlock;
         int fps = 60;
         public Form1()
         {
@@ -40,8 +40,10 @@ namespace VectorBasedLinesEngine
             this.Width = scrWidth + 8;
             this.MinimumSize = new System.Drawing.Size(this.Width, this.Height);
             timer = new System.Diagnostics.Stopwatch();
-            plane = new Plane(5, 5, scrWidth, scrHeight, fancyCameraMovementMethod);
+            planeMoveBlock = new System.Threading.AutoResetEvent(false);
+            plane = new Plane(5, 5, scrWidth, scrHeight, fancyCameraMovementMethod, planeMoveBlock);
             plane.addMethodToHart(fancyTestMethod0);
+
             using (StreamWriter file = new StreamWriter(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
             {//encoding the entity data
                 file.WriteLine("This is an example for an entities data file.");
@@ -55,11 +57,14 @@ namespace VectorBasedLinesEngine
                     IntPair p1c = new IntPair(sectSize / 5 + i * 100, sectSize);//coordinates
                     IntPair p2c = new IntPair(sectSize, sectSize + i * sectSize / 5);
                     IntPair p3c = new IntPair(sectSize - i * 70, i * 70);
-                    PointEntity pe = new PointEntity(@"\data\images\blueSquare1.png", p1c.a, p1c.b, plane);
+                    PointEntity pe;
+                    if (i % 2 == 0) pe = new PointEntity(@"\data\images\blueSquare1.png", p1c.a, p1c.b, plane);
+                    else            pe = new PointEntity(@"\data\images\redSquare0.png", p1c.a, p1c.b, plane);
                     file.WriteLine(pe.dataString());
-                    pe = new PointEntity(@"\data\images\redStar.png", p2c.a, p2c.b, plane);
+                    if (i % 2 == 0) pe = new PointEntity(@"\data\images\redStar.png", p2c.a, p2c.b, plane);
+                    else            pe = new PointEntity(@"\data\images\blueStar.png", p2c.a, p2c.b, plane);
                     file.WriteLine(pe.dataString());
-                    pe = new PointEntity(@"\data\images\blueStar.png", p3c.a, p3c.b, plane);
+                    pe = new PointEntity(@"\data\images\dot0.png", p3c.a, p3c.b, plane);
                     file.WriteLine(pe.dataString());
                     LineEntity le = new LineEntity(System.Drawing.Color.FromArgb(200, 255, 0, 0), p1c, p2c, plane);
                     file.WriteLine(le.dataString());
@@ -90,18 +95,23 @@ namespace VectorBasedLinesEngine
                 {
                     if (crrLine[0] == '|')
                     {
-                             if (crrLine[1] == '0') plane.addEntity(new PointEntity(crrLine, plane));
-                        else if (crrLine[1] == '1') plane.addEntity(new LineEntity(crrLine, plane));
-                        else if (crrLine[1] == '2') plane.addEntity(new PolygonEntity(crrLine, plane));
+                             if (crrLine[1] == '1') plane.addEntity(new PointEntity(crrLine, plane));
+                        else if (crrLine[1] == '2') plane.addEntity(new LineEntity(crrLine, plane));
+                        else if (crrLine[1] == '3') plane.addEntity(new PolygonEntity(crrLine, plane));
                     }
                     crrLine = file.ReadLine();
                 }
             }
-            plane.setEntityWithAction(0, fancyMethod00, 0);
-            plane.setEntityWithAction(3, fancyMethod01, 0);
+            entBlock = new List<System.Threading.AutoResetEvent>();
+            entBlock.Add(new System.Threading.AutoResetEvent(false));
+            plane.entity(0).setAction(fancyMethod00, 0, entBlock[entBlock.Count - 1]);
+            plane.entity(0).launchAction();
+            entBlock.Add(new System.Threading.AutoResetEvent(false));
+            plane.entity(3).setAction(fancyMethod01, 0, entBlock[entBlock.Count - 1]);
+            plane.entity(3).launchAction();
             //plane.addEntity(new PolygonEntity(dp, clr, Directory.GetCurrentDirectory() + @"\data\images\randTexture.png", plane));
             //plane.command(scrWidth, scrHeight);
-            plane.enableEntityActions();
+            //plane.enableEntityActions();
             timer1.Enabled = true;
             refresh();
         }
@@ -142,27 +152,24 @@ namespace VectorBasedLinesEngine
         {
             if (e.KeyChar == 'r')
             {
-                if (plane.debug)
-                    plane.debug = false;
-                else
-                    plane.debug = true;
+                if (plane.debug) plane.debug = false;
+                else             plane.debug = true;
             }
             if (e.KeyChar == 'f')
             {
-                if (isAntiAlias)
-                    isAntiAlias = false;
-                else
-                    isAntiAlias = true;
+                if (isAntiAlias) isAntiAlias = false;
+                else             isAntiAlias = true;
             }
-            if (e.KeyChar == 'z')
-                plane.zoom += 0.02;
-            if (e.KeyChar == 'x')
-                plane.zoom -= 0.02;
+            if (e.KeyChar == 'z') plane.zoom += 0.02;
+            if (e.KeyChar == 'x') plane.zoom -= 0.02;
         }
         private void timer1_Tick(object sender, EventArgs e)
         {
             timer.Start();
-            plane.hartMethod(new ScreenData(scrWidth, scrHeight));
+            plane.doActions();
+            for (int i = 0; i < entBlock.Count; i++)
+                entBlock[i].Set();
+            planeMoveBlock.Set();
             int workTime = 1000 / fps;
             refresh();
             timer.Stop();
@@ -176,7 +183,11 @@ namespace VectorBasedLinesEngine
         }
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            plane.command("stop");
+            for (int i = 0; i < plane.entityCount; i++)
+                plane.entity(i).stopAction();
+            for (int i = 0; i < entBlock.Count; i++)
+                entBlock[i].Set();
+            plane.stopMovementThread(); planeMoveBlock.Set();
             timer1.Enabled = false;
         }
         public bool up = false;
@@ -231,15 +242,16 @@ namespace VectorBasedLinesEngine
         }
         int hor1 = -1;
         int ver1 = -1;
-        private void fancyMethod00(Plane plane, Entity e)
+        private void fancyMethod00(Entity e)
         {
-            if (e.typeAsInt == 0)
+            PointEntity pe = e as PointEntity;
+            if (pe != null)
             {
-                PointEntity pe = (PointEntity)e;
-                if (pe.coordinates.x <= 100 && hor1 == -1) hor1 = 1;
-                if (pe.coordinates.y <= 100 && ver1 == -1) ver1 = 1;
-                if (pe.coordinates.x >= 500 && hor1 == 1) hor1 = -1;
-                if (pe.coordinates.y >= 1000 && ver1 == 1) ver1 = -1;
+                //PointEntity pe = (PointEntity)e;
+                if (pe.coordinates.x <= 100 &&  hor1 == -1) hor1 = 1;
+                if (pe.coordinates.y <= 100 &&  ver1 == -1) ver1 = 1;
+                if (pe.coordinates.x >= 500 &&  hor1 == 1)  hor1 = -1;
+                if (pe.coordinates.y >= 1000 && ver1 == 1)  ver1 = -1;
                 pe.setCoords(pe.coordinates.x + hor1 * 1.5, pe.coordinates.y + ver1 * 2);
             }
         }
@@ -247,11 +259,12 @@ namespace VectorBasedLinesEngine
         int ver2 = -1;
         int hor3 = -1;
         int ver3 = -1;
-        private void fancyMethod01(Plane plane, Entity e)
+        private void fancyMethod01(Entity e)
         {
-            if (e.typeAsInt == 1)
+            LineEntity le = e as LineEntity;
+            if (le != null)
             {
-                LineEntity le = (LineEntity)e;
+                //LineEntity le = (LineEntity)e;
                 if (le.lineCoords.start.x <= 700 && hor2 == -1) hor2 = 1;
                 if (le.lineCoords.start.y <= 0 && ver2 == -1) ver2 = 1;
                 if (le.lineCoords.start.x >= 1400 && hor2 == 1) hor2 = -1;

@@ -31,6 +31,7 @@ namespace VectorBasedLinesEngine
             _x = p.a;
             _y = p.b;
         }
+        public static implicit operator System.Drawing.Point(Point p) { return new System.Drawing.Point((int)Math.Round(p.x), (int)Math.Round(p.y)); }
         public double x {
             get { return _x; }
             set { _x = value; } }
@@ -259,6 +260,7 @@ namespace VectorBasedLinesEngine
         public IntPair(IntPair ip) { a = ip.a; b = ip.b; }
         public static implicit operator DoublePair(IntPair ip) { return new DoublePair(ip.a, ip.b); }
         public static implicit operator Point(IntPair ip) { return new Point(ip.a, ip.b); }
+        public static implicit operator System.Drawing.Point(IntPair ip) { return new System.Drawing.Point(ip.a, ip.b); }
         public static IntPair operator /(IntPair dp, double d)
         {
             return new IntPair((double)(dp.a) / d, (double)(dp.b) / d);
@@ -284,6 +286,7 @@ namespace VectorBasedLinesEngine
         public DoublePair(double a, double b) { set(a, b); }
         public DoublePair(DoublePair ip) { set(ip.a, ip.b); }
         public static implicit operator Point(DoublePair dp) { return new Point(dp.a, dp.b); }
+        public static implicit operator System.Drawing.Point(DoublePair ip) { return new System.Drawing.Point((int)Math.Round(ip.a), (int)Math.Round(ip.b)); }
         public static DoublePair operator / (DoublePair dp, double d)
         {
             return new DoublePair(dp.a / d, dp.b / d);

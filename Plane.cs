@@ -72,37 +72,36 @@ namespace VectorBasedLinesEngine
         }
         //Refer to Large Comment #1 for more info on the sections
         private List<List<SortedSet<int>>> entInd;//[sector row][sector column]
-        private List<Entity> _entity;
-
+        private List<Drawable> _entity; public int entityCount { get { return _entity.Count; } }
+        public Entity entity(int id) { return _entity[id] as Entity; }
         //private System.Threading.Thread hart;//because the WinForm forms can be manipulated only from the main thread, the hart must be called by a timer in the game's code
-        private List<System.Threading.AutoResetEvent> block;
+        //private List<System.Threading.AutoResetEvent> block;
         private Object entLock;
-        private bool hartStopped = false;
-        //System.Diagnostics.Stopwatch timer;
-        //private bool stopHart;
-        //private int fps;//for now the FPS is set in the code for the form
-        //public bool refreshed;
+        //private bool hartStopped = false;
         public bool debug = false;
         private GenericMethod movement;//a method for the "camera" movement - the movement of the basis relative to the screen
+        private bool stopMoveThread = false;
+        public void stopMovementThread() { stopMoveThread = true; }
         private List<GenericMethod> method;
         private System.Threading.AutoResetEvent movementBlock;//works in a ceperate thread to give more flexibility
         private System.Threading.Thread moveThread;
         private void moveCycle()
         {
-            while (hartStopped == false)
+            while (stopMoveThread == false)
             {
-                movement(this);
                 movementBlock.WaitOne();
+                if (movement != null)
+                    movement(this);
             }
         }
         //the basis' center coordinates are relative to the basis of the screen's upper left corner
-        private void setStuff(int sc, int sr, int scrWd, int scrHt, GenericMethod movement)
+        private void setStuff(int sc, int sr, int scrWd, int scrHt, GenericMethod mm, System.Threading.AutoResetEvent mb)
         {
             sectCols = sc;
             sectRows = sr;
             sectSize = ((int)(System.Math.Sqrt(Math.Pow((double)scrHt / minZoom, 2) + Math.Pow((double)scrWd / minZoom, 2))) / 100) * 100 + 100;
             basis = new Basis(0, 0, new ScreenData(scrWd, scrHt));
-            _entity = new List<Entity>();
+            _entity = new List<Drawable>();
             entInd = new List<List<SortedSet<int>>>();
             for (int row = 0; row < sr; row++)
             {
@@ -112,7 +111,7 @@ namespace VectorBasedLinesEngine
                 entInd.Add(temp);
             }
             //stopHart = false;
-            block = new List<System.Threading.AutoResetEvent>();
+            //block = new List<System.Threading.AutoResetEvent>();
             entLock = new Object();
             //fps = 60;
             List<IntPair> coord = new List<IntPair>();
@@ -120,24 +119,28 @@ namespace VectorBasedLinesEngine
             List<System.Drawing.Color> color = new List<System.Drawing.Color>();
             List<Point> point = new List<Point>();
             List<LineEntity> stdLine = new List<LineEntity>();
-            this.movement = movement;//setting the movement method
+            this.movement = mm;//setting the movement method
             method = new List<GenericMethod>();
-            movementBlock = new System.Threading.AutoResetEvent(false);
+            this.movementBlock = mb;
             moveThread = new System.Threading.Thread(() => moveCycle());
             moveThread.Start();
         }
-        public Plane(int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm) {
-            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm); }
-        public Plane(int basisCenterX, int basisCenterY, int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod mm) {
-            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, mm); }
+        public Plane(int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod moveMethod, System.Threading.AutoResetEvent moveBlock) {
+            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, moveMethod, moveBlock); }
+        public Plane(int basisCenterX, int basisCenterY, int sectionCols, int sectionRows, int screenWidth, int screenHeight, GenericMethod moveMethod, System.Threading.AutoResetEvent moveBlock){
+            setStuff(sectionCols, sectionRows, screenWidth, screenHeight, moveMethod, moveBlock); }
         public void addEntity(Entity e)
         {
-            IntPair[] sect = e.locatedInSections(sectSize);//the pair is returned in the format (colum, row), or sect[n].a is the colum and sect[n].b is the row
-            for (int i = 0; i < sect.Length; i++)
-                if (sect[i].a >= 0 && sect[i].b >= 0 && sect[i].a < sectCols && sect[i].b < sectRows)
-                    entInd[sect[i].b][sect[i].a].Add(_entity.Count);
-            e.setIndexInPlane(_entity.Count);
-            _entity.Add(e);
+            Drawable d = e as Drawable;
+            if (d != null)
+            {
+                IntPair[] sect = d.calcOccupiedSects(sectSize);//the pair is returned in the format (colum, row), or sect[n].a is the colum and sect[n].b is the row
+                for (int i = 0; i < sect.Length; i++)
+                    if (sect[i].a >= 0 && sect[i].b >= 0 && sect[i].a < sectCols && sect[i].b < sectRows)
+                        entInd[sect[i].b][sect[i].a].Add(_entity.Count);
+                d.indexInPlane = _entity.Count;
+                _entity.Add(d);
+            }
         }
         public void changeEntitySections(int entInd, IntPair[] newSect, IntPair[] oldSect)//called from the entites
         {//what are the entity's new sections is calculated in each entity's coordinates changing methods
@@ -151,14 +154,7 @@ namespace VectorBasedLinesEngine
         }
         public void rotate(double deg, ScreenData screen)
         {
-            //changeScreenSize(screen);
-            //Refer to Large Comment #3 fo info on the stabilization
-            //Point crrCent = new Point(screen.center.intPlaneCoords(basis, screen));//point with the screen center's current coordinates according to the plane's basis
-            //DoublePair crrCentScr = crrCent.doubleScrCoords(basis, screen);//screen coordinates of the point according to the screen
             basis.rotate(deg, new DoublePair(screen.center.x, screen.center.y));//rotating
-            //DoublePair newCentScr = crrCent.doubleScrCoords(basis, screen);//the new screen coordinates of the point according to the screen
-            //move(crrCentScr.a - newCentScr.a, crrCentScr.b - newCentScr.b);//moving with the pixels of the diversion
-            //if (basis.x().x == basis.y().x || basis.x().y == basis.y().y) throw new SystemException("Basis vectors have become the same!");
         }
         public void move(double pxx, double pxy)
         {
@@ -317,52 +313,51 @@ namespace VectorBasedLinesEngine
             }
         }
         public int sectorSize() { return sectSize; }
-        public void hartMethod(ScreenData screen)
+        public void doActions()
         {
             for (int i = 0; i < method.Count; i++ )
                 if (method[i] != null)
                     method[i](this);//going through methods for doing other stuff
-            for (int i = 0; i < block.Count; i++)
-                block[i].Set();//releasing the threads of all the entities
-            movementBlock.Set();//release the movement thread
+            //for (int i = 0; i < block.Count; i++)
+            //    block[i].Set();//releasing the threads of all the entities
+            //movementBlock.Set();//release the movement thread
             for (int i = 0; i < _entity.Count; i++)
                 if (_entity[i].moved)
-                    _entity[i].reCalcSects();
-
+                    _entity[i].reCalcSects(sectSize);
         }
-        private void stopHart()
-        {
-            for (int i = 0; i < _entity.Count; i++)
-                _entity[i].stopAction();
-            for (int i = 0; i < block.Count; i++)
-                block[i].Set();
-            hartStopped = true;
-            movementBlock.Set();
-        }
-        public void setEntityWithAction(int entInd, Action method, int cycles)
-        {
-            if (entInd < _entity.Count && entInd >= 0)
-            {
-                System.Threading.AutoResetEvent tmp = new System.Threading.AutoResetEvent(false);
-                block.Add(tmp);
-                _entity[entInd].setAction(method, cycles, block[block.Count - 1]);
-                _entity[entInd].setBlock(tmp);
-            }
-        }
-        public void command(string cmd)
-        {
-            if (cmd.Equals("stop")) { stopHart(); }
-            else if (cmd.Equals("debug"))
-            {
-                if (debug) debug = false;
-                else debug = true;
-            }
-        }
-        public void enableEntityActions()
-        {
-            for (int i = 0; i < _entity.Count; i++)
-                _entity[i].launchAction();
-        }
+        //private void stopHart()
+        //{
+        //    for (int i = 0; i < _entity.Count; i++)
+        //        _entity[i].stopAction();
+        //    for (int i = 0; i < block.Count; i++)
+        //        block[i].Set();
+        //    hartStopped = true;
+        //    movementBlock.Set();
+        //}
+        //public void setEntityWithAction(int entInd, Action method, int cycles)
+        //{
+        //    if (entInd < _entity.Count && entInd >= 0)
+        //    {
+        //        System.Threading.AutoResetEvent tmp = new System.Threading.AutoResetEvent(false);
+        //        block.Add(tmp);
+        //        _entity[entInd].setAction(method, cycles, block[block.Count - 1]);
+        //        //_entity[entInd].setBlock(tmp);
+        //    }
+        //}
+        //public void command(string cmd)
+        //{
+        //    if (cmd.Equals("stop")) { stopHart(); }
+        //    else if (cmd.Equals("debug"))
+        //    {
+        //        if (debug) debug = false;
+        //        else debug = true;
+        //    }
+        //}
+        //public void enableEntityActions()
+        //{
+        //    for (int i = 0; i < _entity.Count; i++)
+        //        _entity[i].launchAction();
+        //}
     }
 }
 
@@ -379,6 +374,15 @@ namespace VectorBasedLinesEngine
     Otherwise, the sections, that are visible by the screen, are the sections, where the angles of the screen are located, relative
     to the plane's basis.
  */
+
+            //changeScreenSize(screen);
+            //Refer to Large Comment #3 fo info on the stabilization
+            //Point crrCent = new Point(screen.center.intPlaneCoords(basis, screen));//point with the screen center's current coordinates according to the plane's basis
+            //DoublePair crrCentScr = crrCent.doubleScrCoords(basis, screen);//screen coordinates of the point according to the screen
+            //basis.rotate(deg, new DoublePair(screen.center.x, screen.center.y));//rotating
+            //DoublePair newCentScr = crrCent.doubleScrCoords(basis, screen);//the new screen coordinates of the point according to the screen
+            //move(crrCentScr.a - newCentScr.a, crrCentScr.b - newCentScr.b);//moving with the pixels of the diversion
+            //if (basis.x().x == basis.y().x || basis.x().y == basis.y().y) throw new SystemException("Basis vectors have become the same!");
 /*Large Comment #3 (read last line in the comment)
     When rotating the basis, everty time the "rotation" variable goes above 360 or lower than 0, the value gets set to 0 or 360 respectively,
     and then it gets changed further, according to how much the basis must rotate. Check "Basis.cs" for more info. When doing that, the
