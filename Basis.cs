@@ -6,21 +6,21 @@ using System.Threading.Tasks;
 
 namespace VectorBasedLinesEngine
 {
-    class Basis
+    public class Basis
     {
         //Refer to large comment #2 for info on how the program works with all the variables
         private DoublePair c;
-        public Point center         { get { Point res = new Point(c); return res.zoomedCoords(screen.center, _zoom); } }
+        public Point center         { get { Point res = new Point(c); return new Point(res.zoomedCoords(screen.center, _zoom)); } }
         public Point centerNoZoom   { get { return new Point(c.a + divC.a, c.b + divC.b); } }
         public Point centerNoDiv    { get { return new Point(c.a * _zoom, c.b * _zoom); } }
         public Point centerBaseVals { get { return new Point(c.a, c.b); } }
         private DoublePair x;
-        public Point xVector         { get { return new Point( center.x + x.a - c.a, center.y + x.b - c.b); } }
+        public Point xVector         { get { return new Point(center.x + x.a - c.a, center.y + x.b - c.b); } }
         public Point xVectorNoZoom   { get { return new Point(x.a + divX.a, x.b + divX.b); } }
         public Point xVectorNoDiv    { get { return new Point(x.a * _zoom, x.b * _zoom); } }
         public Point xVectorBaseVals { get { return new Point(x.a, x.b); } }
         private DoublePair y;
-        public Point yVector         { get { return new Point( center.x + y.a - c.a, center.y + y.b - c.b); } }
+        public Point yVector         { get { return new Point(center.x + y.a - c.a, center.y + y.b - c.b); } }
         public Point yVectorNoZoom   { get { return new Point(y.a + divY.a, y.b + divY.b); } }
         public Point yVectorNoDiv    { get { return new Point(y.a * _zoom, y.b * _zoom); } }
         public Point yVectorBaseVals { get { return new Point(y.a, y.b); } }

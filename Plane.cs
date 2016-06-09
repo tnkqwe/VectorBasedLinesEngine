@@ -7,8 +7,8 @@ using System.IO;
 
 namespace VectorBasedLinesEngine
 {
-    delegate void GenericMethod(Plane plane);
-    class Plane
+    public delegate void GenericMethod(Plane plane);
+    public class Plane
     {
         private Basis basis;//basis
         private int sectRows;//section rows
@@ -70,14 +70,30 @@ namespace VectorBasedLinesEngine
             get { return yVectorDiversion.b; }
             set { basis.yVectorDiversion = new DoublePair(basis.yVectorDiversion.a, value); }//we are changing the Y value, the X value remain the same
         }
+        //images database - here images will be loaded and used
+        private List<ImageResource> imgRes;
+        public int addImageResource(string imgDir)
+        {//I should use a faster data structure, but for now I will roll with this
+            int res = -1;
+            for (int i = 0; i < imgRes.Count; i++)
+                if (imgRes[i].imageDirectory.Equals(imgDir))
+                {
+                    res = i;
+                    break;
+                }
+            if (res == -1)
+            {
+                res = imgRes.Count;
+                imgRes.Add(new ImageResource(imgDir));
+            }
+            return res;
+        }
+        public System.Drawing.Bitmap getImageFromIndex(int index) { return imgRes[index].image.Clone() as System.Drawing.Bitmap; }
         //Refer to Large Comment #1 for more info on the sections
         private List<List<SortedSet<int>>> entInd;//[sector row][sector column]
         private List<Drawable> _entity; public int entityCount { get { return _entity.Count; } }
         public Entity entity(int id) { return _entity[id] as Entity; }
-        //private System.Threading.Thread hart;//because the WinForm forms can be manipulated only from the main thread, the hart must be called by a timer in the game's code
-        //private List<System.Threading.AutoResetEvent> block;
         private Object entLock;
-        //private bool hartStopped = false;
         public bool debug = false;
         private GenericMethod movement;//a method for the "camera" movement - the movement of the basis relative to the screen
         private bool stopMoveThread = false;
@@ -110,6 +126,7 @@ namespace VectorBasedLinesEngine
                     temp.Add(new SortedSet<int>());
                 entInd.Add(temp);
             }
+            imgRes = new List<ImageResource>();
             //stopHart = false;
             //block = new List<System.Threading.AutoResetEvent>();
             entLock = new Object();
@@ -208,7 +225,7 @@ namespace VectorBasedLinesEngine
                 Math.Round(Math.Round((double)scrCent.b / (double)sectSize)) * sectSize);//sector are sectCol * sectSize and sectRow * sectSize
             IntPair meetPointSect = new IntPair((int)(meetPoint.x) / sectSize, (int)(meetPoint.y) / sectSize);
             //meetPoint = meetPoint.zoomedCoords(scrCent, _zoom);
-            if (screen.isPointInside(meetPoint.intScrCoords(basis, screen)))
+            if (screen.isPointInside(new Point(meetPoint.intScrCoords(basis, screen))))
             {
                 sector.Add(new IntPair(meetPointSect.a, meetPointSect.b));
                 if (meetPointSect.a - 1 > -1)
@@ -265,7 +282,7 @@ namespace VectorBasedLinesEngine
                         (int)pnt0.x, (int)pnt0.y);
                     }
                 //Point pnt = new Point(scrCent.a, scrCent.b);
-                Point pnt = scrCent;
+                Point pnt = new Point(scrCent);
                 IntPair pntScr = new IntPair(pnt.intScrCoords(basis, screen));
                 System.Drawing.Pen gray = new System.Drawing.Pen(System.Drawing.Color.Gray);
                 gfx.DrawLine(gray, pntScr.a - 5, pntScr.b, pntScr.a + 5, pntScr.b);
@@ -283,9 +300,9 @@ namespace VectorBasedLinesEngine
                     Point sectY = new Point(sector[s].a * sectSize, (sector[s].b + 1) * sectSize);
                     Line tmpLnA = new Line(sectAngl, sectX);
                     Line tmpLnB = new Line(sectAngl, sectY);
-                    sectAngl = sectAngl.intScrCoords(basis, screen);// sectAngl = sectAngl.zoomedCoords(screen.center, _zoom);
-                    sectX = sectX.intScrCoords(basis, screen);// sectX = sectX.zoomedCoords(screen.center, _zoom);
-                    sectY = sectY.intScrCoords(basis, screen);// sectY = sectY.zoomedCoords(screen.center, _zoom);
+                    sectAngl = new Point(sectAngl.intScrCoords(basis, screen));// sectAngl = sectAngl.zoomedCoords(screen.center, _zoom);
+                    sectX = new Point(sectX.intScrCoords(basis, screen));// sectX = sectX.zoomedCoords(screen.center, _zoom);
+                    sectY = new Point(sectY.intScrCoords(basis, screen));// sectY = sectY.zoomedCoords(screen.center, _zoom);
                     gfx.DrawLine(red, (int)sectAngl.x, (int)sectAngl.y, (int)sectX.x, (int)sectX.y);//section borders
                     gfx.DrawLine(blue, (int)sectAngl.x, (int)sectAngl.y, (int)sectY.x, (int)sectY.y);
                     gfx.DrawString(tmpLnA.getEquasionString(),//equasions of section borders
@@ -305,7 +322,7 @@ namespace VectorBasedLinesEngine
                         0, 0);
                 }
                 Point coorTxt = new Point(meetPoint.x + 10, meetPoint.y + 10);
-                coorTxt = coorTxt.intScrCoords(basis, screen);
+                coorTxt = new Point(coorTxt.intScrCoords(basis, screen));
                 gfx.DrawString(meetPoint.x + " " + meetPoint.y + " " + screen.isPointInside(meetPoint),
                     new System.Drawing.Font("Consolas", 12),
                     new System.Drawing.SolidBrush(System.Drawing.Color.Black),
@@ -325,39 +342,22 @@ namespace VectorBasedLinesEngine
                 if (_entity[i].moved)
                     _entity[i].reCalcSects(sectSize);
         }
-        //private void stopHart()
-        //{
-        //    for (int i = 0; i < _entity.Count; i++)
-        //        _entity[i].stopAction();
-        //    for (int i = 0; i < block.Count; i++)
-        //        block[i].Set();
-        //    hartStopped = true;
-        //    movementBlock.Set();
-        //}
-        //public void setEntityWithAction(int entInd, Action method, int cycles)
-        //{
-        //    if (entInd < _entity.Count && entInd >= 0)
-        //    {
-        //        System.Threading.AutoResetEvent tmp = new System.Threading.AutoResetEvent(false);
-        //        block.Add(tmp);
-        //        _entity[entInd].setAction(method, cycles, block[block.Count - 1]);
-        //        //_entity[entInd].setBlock(tmp);
-        //    }
-        //}
-        //public void command(string cmd)
-        //{
-        //    if (cmd.Equals("stop")) { stopHart(); }
-        //    else if (cmd.Equals("debug"))
-        //    {
-        //        if (debug) debug = false;
-        //        else debug = true;
-        //    }
-        //}
-        //public void enableEntityActions()
-        //{
-        //    for (int i = 0; i < _entity.Count; i++)
-        //        _entity[i].launchAction();
-        //}
+    }
+    public class ImageResource
+    {
+        public ImageResource(string imgDir) { imageDirectory = string.Copy(imgDir); }
+        private string imgDir;
+        private System.Drawing.Bitmap img;
+        public string imageDirectory
+        {
+            get { return imgDir; }
+            set
+            {
+                imgDir = string.Copy(value);
+                img = System.Drawing.Bitmap.FromFile(System.IO.Directory.GetCurrentDirectory() + imgDir) as System.Drawing.Bitmap;
+            }
+        }
+        public System.Drawing.Bitmap image { get { return img; } }
     }
 }
 
@@ -596,3 +596,70 @@ class Sector
                         crrLine = file.ReadLine();
                 }
             }*/
+
+//private void stopHart()
+//{
+//    for (int i = 0; i < _entity.Count; i++)
+//        _entity[i].stopAction();
+//    for (int i = 0; i < block.Count; i++)
+//        block[i].Set();
+//    hartStopped = true;
+//    movementBlock.Set();
+//}
+//public void setEntityWithAction(int entInd, Action method, int cycles)
+//{
+//    if (entInd < _entity.Count && entInd >= 0)
+//    {
+//        System.Threading.AutoResetEvent tmp = new System.Threading.AutoResetEvent(false);
+//        block.Add(tmp);
+//        _entity[entInd].setAction(method, cycles, block[block.Count - 1]);
+//        //_entity[entInd].setBlock(tmp);
+//    }
+//}
+//public void command(string cmd)
+//{
+//    if (cmd.Equals("stop")) { stopHart(); }
+//    else if (cmd.Equals("debug"))
+//    {
+//        if (debug) debug = false;
+//        else debug = true;
+//    }
+//}
+//public void enableEntityActions()
+//{
+//    for (int i = 0; i < _entity.Count; i++)
+//        _entity[i].launchAction();
+//}
+//private void stopHart()
+//{
+//    for (int i = 0; i < _entity.Count; i++)
+//        _entity[i].stopAction();
+//    for (int i = 0; i < block.Count; i++)
+//        block[i].Set();
+//    hartStopped = true;
+//    movementBlock.Set();
+//}
+//public void setEntityWithAction(int entInd, Action method, int cycles)
+//{
+//    if (entInd < _entity.Count && entInd >= 0)
+//    {
+//        System.Threading.AutoResetEvent tmp = new System.Threading.AutoResetEvent(false);
+//        block.Add(tmp);
+//        _entity[entInd].setAction(method, cycles, block[block.Count - 1]);
+//        //_entity[entInd].setBlock(tmp);
+//    }
+//}
+//public void command(string cmd)
+//{
+//    if (cmd.Equals("stop")) { stopHart(); }
+//    else if (cmd.Equals("debug"))
+//    {
+//        if (debug) debug = false;
+//        else debug = true;
+//    }
+//}
+//public void enableEntityActions()
+//{
+//    for (int i = 0; i < _entity.Count; i++)
+//        _entity[i].launchAction();
+//}

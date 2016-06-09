@@ -43,7 +43,6 @@ namespace VectorBasedLinesEngine
             planeMoveBlock = new System.Threading.AutoResetEvent(false);
             plane = new Plane(5, 5, scrWidth, scrHeight, fancyCameraMovementMethod, planeMoveBlock);
             plane.addMethodToHart(fancyTestMethod0);
-
             using (StreamWriter file = new StreamWriter(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
             {//encoding the entity data
                 file.WriteLine("This is an example for an entities data file.");
@@ -109,9 +108,6 @@ namespace VectorBasedLinesEngine
             entBlock.Add(new System.Threading.AutoResetEvent(false));
             plane.entity(3).setAction(fancyMethod01, 0, entBlock[entBlock.Count - 1]);
             plane.entity(3).launchAction();
-            //plane.addEntity(new PolygonEntity(dp, clr, Directory.GetCurrentDirectory() + @"\data\images\randTexture.png", plane));
-            //plane.command(scrWidth, scrHeight);
-            //plane.enableEntityActions();
             timer1.Enabled = true;
             refresh();
         }
@@ -264,7 +260,6 @@ namespace VectorBasedLinesEngine
             LineEntity le = e as LineEntity;
             if (le != null)
             {
-                //LineEntity le = (LineEntity)e;
                 if (le.lineCoords.start.x <= 700 && hor2 == -1) hor2 = 1;
                 if (le.lineCoords.start.y <= 0 && ver2 == -1) ver2 = 1;
                 if (le.lineCoords.start.x >= 1400 && hor2 == 1) hor2 = -1;
