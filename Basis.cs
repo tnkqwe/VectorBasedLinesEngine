@@ -1,32 +1,65 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace VectorBasedLinesEngine
+namespace VBLEDrawing
 {
     public class Basis
     {
         //Refer to large comment #2 for info on how the program works with all the variables
         private DoublePair c;
-        public Point center         { get { Point res = new Point(c); return new Point(res.zoomedCoords(screen.center, _zoom)); } }
-        public Point centerNoZoom   { get { return new Point(c.a + divC.a, c.b + divC.b); } }
-        public Point centerNoDiv    { get { return new Point(c.a * _zoom, c.b * _zoom); } }
+        /// <summary> Coordinates of the center with the specified modifiers. Modifiers are applied in the following sequence: diversion, zoom, rotation</summary>
+        /// <param name="diversion">With diversion</param>
+        /// <param name="zoom">With zoom</param>
+        /// <param name="rotation">With rotation</param>
+        /// <returns></returns>
+        public Point centerCoordinates(bool diversion, bool zoom, bool rotation) { return getPntDat(c, divC, diversion, zoom, rotation); }
+        /// <summary> Where is the center located. Equivalet to centerCoordinates(true, true, true)</summary>
+        public Point center { get { return centerCoordinates(true,  true,  true); } }
+        /// <summary> Where is the center located without calculating the zoom. Equivalet to centerCoordinates(true, false, true)</summary>
+        public Point centerNoZoom { get { return centerCoordinates(true,  false, true); } }
+        /// <summary> Where is the center located without calculating the diversion. Equivalent to centerCoordinates(false, true, true)</summary>
+        public Point centerNoDiv { get { return centerCoordinates(false, true,  true); } }
+        /// <summary> Where is the center located without calculating the rotation. Equivalent to centerCoordinates(true, true, false)</summary>
+        public Point centerNoRot { get { return centerCoordinates(true,  true,  false); } }
+        /// <summary> Base coordinates of the center. </summary>
         public Point centerBaseVals { get { return new Point(c.a, c.b); } }
         private DoublePair x;
-        public Point xVector         { get { return new Point(center.x + x.a - c.a, center.y + x.b - c.b); } }
-        public Point xVectorNoZoom   { get { return new Point(x.a + divX.a, x.b + divX.b); } }
-        public Point xVectorNoDiv    { get { return new Point(x.a * _zoom, x.b * _zoom); } }
+        public Point xVectorCoordinates(bool diversion, bool zoom, bool rotation) { return getPntDat(x, divX, diversion, zoom, rotation); }
+        /// <summary> Where is the end of the X vector located. </summary>
+        public Point xVector { get { return xVectorCoordinates(true, true, true); } }
+        /// <summary> Where is the end of the X vector located without calculating the zoom. </summary>
+        public Point xVectorNoZoom { get { return xVectorCoordinates(true, false, true); } }
+        /// <summary> Where is the end of the X vector located without calculating the diversion. </summary>
+        public Point xVectorNoDiv { get { return xVectorCoordinates(false, true, true); } }
+        /// <summary> Where is the end of the X vector located without calculating the rotation. </summary>
+        public Point xvectorNoRot { get { return xVectorCoordinates(true, true, false);} }
+        /// <summary> Base coordinates of the X vector.</summary>
         public Point xVectorBaseVals { get { return new Point(x.a, x.b); } }
         private DoublePair y;
-        public Point yVector         { get { return new Point(center.x + y.a - c.a, center.y + y.b - c.b); } }
-        public Point yVectorNoZoom   { get { return new Point(y.a + divY.a, y.b + divY.b); } }
-        public Point yVectorNoDiv    { get { return new Point(y.a * _zoom, y.b * _zoom); } }
+        public Point yVectorCoordinates(bool diversion, bool zoom, bool rotation) { return getPntDat(y, divY, diversion, zoom, rotation); }
+        /// <summary> Where is the end of the Y vector located.</summary>
+        public Point yVector { get { return yVectorCoordinates(true, true, true); } }
+        /// <summary> Where is the end of the Y vector located without calculating the zoom. </summary>
+        public Point yVectorNoZoom { get { return yVectorCoordinates(true, false, true); } }
+        /// <summary> Where is the end of the Y vector located without calculating the diversion.</summary>
+        public Point yVectorNoDiv { get { return yVectorCoordinates(false, true, true); } }
+        /// <summary> Where is the end of the Y vector located without calculating the rotation. </summary>
+        public Point yVectorNoRot { get { return yVectorCoordinates(true, true, false); } }
+        /// <summary> Base coordinates of the Y vector. </summary>
         public Point yVectorBaseVals { get { return new Point(y.a, y.b); } }
+        private Point getPntDat(Point p, DoublePair div, bool dv, bool zm, bool rt)
+        {
+            Point res = new Point(p);
+            if (dv) { res.x += div.a; res.y += div.b; }
+            if (zm) { res.zoomedCoords(origin, _zoom); }
+            if (rt) { res = rotatePoint(res.x, res.y, rot, (DoublePair)origin); }
+            return res;
+        }
         private ScreenData screen;
         //diversion of the bassis vectors; added because why not; use for effects
         private DoublePair divC;
+        /// <summary> Diversion of the center. </summary>
         public DoublePair centerDiversion
         { 
             get { return new DoublePair(divC); }
@@ -37,6 +70,7 @@ namespace VectorBasedLinesEngine
             }
         }
         private DoublePair divX;
+        /// <summary> Diversion of the end of the X vector. </summary>
         public DoublePair xVectorDiversion
         {
             get { return new DoublePair(divX); }
@@ -47,6 +81,7 @@ namespace VectorBasedLinesEngine
             }
         }
         private DoublePair divY;
+        /// <summary> Diversion of the end of the Y vector. </summary>
         public DoublePair yVectorDiversion
         {
             get { return new DoublePair(divY); }
@@ -57,28 +92,63 @@ namespace VectorBasedLinesEngine
             }
         }
         //zoom; theoretically, any zoom values should be able to be handled
-        private double maxZoom = 2.0;
-        private double minZoom = 0.5;
+        private double _maxZoom = 2.0;
+        /// <summary> Maximum zoom. </summary>
+        public double maxZoom
+        {
+            get { return _maxZoom; }
+            set
+            {
+                if (_zoom > value) _zoom = value;
+                _maxZoom = value;
+            }
+        }
+        private double _minZoom = 0.5;
+        /// <summary> Minimum Zoom. </summary>
+        public double minZoom
+        {
+            get { return _minZoom; }
+            set
+            {
+                if (_zoom < value) _zoom = value;
+                _minZoom = value;
+            }
+        }
         private double _zoom = 1;
+        private Point origin;
+        /// <summary> Sets the point, around which the basis rotates and zooms.</summary>
+        /// <param name="dp">Coordinates of the new origin</param>
+        public void setOrigin(DoublePair dp) { origin = dp; }
+        public void setOrigin(double x, double y) { origin = new Point(x, y); }
+        /// <summary> Current zoom. </summary>
         public double zoom
         {
             get { return _zoom; }
-            set { if (value >= minZoom && value <= maxZoom) _zoom = value; }//where the basis should be after zooming is calculated in the center, xVector and yVector accessors
+            set { if (value >= _minZoom && value <= _maxZoom) _zoom = value; }//where the basis should be after zooming is calculated in the center, xVector and yVector accessors
         }
-        private double rotation;
+        private double rot;
+        /// <summary> Rotation of the basis. To rotate, use rotate(double, DoublePair)</summary>
+        public double rotation { get { return rot; } }
         private double vectLen;
-        public double vectorLength { get { return vectLen; } }
-        public int vectorLengthInt { get { return (int)vectLen; } }
-        //private double _zoom = 1; public double zoom { get { return _zoom; } set { _zoom = value; } }
+        //public double vectorLength { get { return vectLen; } }
+        //public int vectorLengthInt { get { return (int)vectLen; } }
         //private double _OXlen;
+        /// <summary> Length of the X vector. </summary>
         public double OXlen         { get { return calcVectLen(true,  true,  c, x, divC, divX); } }
+        /// <summary> Length of the X vector without calculating the zoom. </summary>
         public double OXlenNoZoom   { get { return calcVectLen(false, true,  c, x, divC, divX); } }
+        /// <summary> Length of the X vector without calculating the diversion. </summary>
         public double OXlenNoDiv    { get { return calcVectLen(true,  false, c, x, divC, divX); } }
+        /// <summary> Base length of the X vector. </summary>
         public double OXlenBaseVals { get { return calcVectLen(false, false, c, x, divC, divX); } }
         //private double _OYlen;
-        public double OYlen         { get { return calcVectLen(true,  true,  c, y, divC, divY);} }
+        /// <summary> Length of the Y vector. </summary>
+        public double OYlen         { get { return calcVectLen(true,  true,  c, y, divC, divY); } }
+        /// <summary> Length of the Y vector without calculating the zoom. </summary>
         public double OYlenNoZoom   { get { return calcVectLen(false, true,  c, y, divC, divY); } }
+        /// <summary> Length of the Y vector without calculating the diversion. </summary>
         public double OYlenNoDiv    { get { return calcVectLen(true,  false, c, y, divC, divY); } }
+        /// <summary> Base length of the Y vector. </summary>
         public double OYlenBaseVals { get { return calcVectLen(false, false, c, y, divC, divY); } }
         private void setStuff(double cx, double cy, ScreenData screen)
         {
@@ -95,7 +165,8 @@ namespace VectorBasedLinesEngine
             _zoom = 1;
             //calcOXlen();
             //calcOYlen();
-            rotation = 0;
+            rot = 0;
+            origin = screen.center;
             //vectLen = System.Math.Sqrt((cx - xx) * (cx - xx) + (cy - xy) * (cy - xy));
             vectLen = 1;
             this.screen = screen;
@@ -121,23 +192,29 @@ namespace VectorBasedLinesEngine
         }
         //public Basis(Basis b) { setStuff(b.center.x, b.center.y); }
         //public Basis(int cx, int cy, int xx, int xy, int yx, int yy) { setStuff(cx, cy, xx, xy, yx, yy); }//refer to large comment #1
+        /// <summary> Constructor. Vectors are made perpendicular and the center is placed on the specified coordinates. Use the diversion properties to change that.</summary>
+        /// <param name="cx">X coordinate of the center</param>
+        /// <param name="cy">Y coordinate of the center</param>
+        /// <param name="screen">Screen data</param>
         public Basis(int cx, int cy, ScreenData screen) { setStuff(cx, cy, screen); }
+        /// <summary>Constructor. Vectors are made perpendicular and the center is set with coordinates (0,0). Use the diversion properties to change that.</summary>
+        /// <param name="screen"></param>
         public Basis(ScreenData screen) { setStuff(0, 0, screen); }
-        private DoublePair rotatePoint(double x, double y, double deg, DoublePair scrCent)
+        private DoublePair rotatePoint(double x, double y, double deg, DoublePair rotCent)
         {
             double rads = 0.0174533 * deg;
             DoublePair res = new DoublePair(
-                ((x - scrCent.a) * System.Math.Cos(rads) - (y - scrCent.b) * System.Math.Sin(rads)) + scrCent.a,//in this case scrCent.b is the X coordinate of the center
-                ((x - scrCent.a) * System.Math.Sin(rads) + (y - scrCent.b) * System.Math.Cos(rads)) + scrCent.b);//scrCent.a is the Y coordinate
+                ((x - rotCent.a) * System.Math.Cos(rads) - (y - rotCent.b) * System.Math.Sin(rads)) + rotCent.a,//in this case scrCent.b is the X coordinate of the center
+                ((x - rotCent.a) * System.Math.Sin(rads) + (y - rotCent.b) * System.Math.Cos(rads)) + rotCent.b);//scrCent.a is the Y coordinate
             return res;
         }
-        private void _rotate(double deg, DoublePair scrCent)
-        {
-            c = rotatePoint(c.a, c.b, deg, scrCent);
-            x = rotatePoint(x.a, x.b, deg, scrCent);
-            y = rotatePoint(y.a, y.b, deg, scrCent);
-            //change of the rotation variable is done in rotate(int, IntPair)
-        }
+        //private void _rotate(double deg, DoublePair scrCent)
+        //{
+        //    c = rotatePoint(c.a, c.b, deg, scrCent);
+        //    x = rotatePoint(x.a, x.b, deg, scrCent);
+        //    y = rotatePoint(y.a, y.b, deg, scrCent);
+        //    //change of the rotation variable is done in rotate(int, IntPair)
+        //}
         private void setBasisVect (DoublePair vect)
         {
             if (System.Math.Abs(System.Math.Abs(vect.a) - System.Math.Abs(c.a)) > System.Math.Abs(System.Math.Abs(vect.b) - System.Math.Abs(c.b)))//vector is horisontal
@@ -157,20 +234,31 @@ namespace VectorBasedLinesEngine
                 vect.a = c.a;
             }
         }
+        /// <summary>Rotate the basis.</summary>
+        /// <param name="deg">Degrees</param>
+        /// <param name="scrCent">Center around with the rotation is done</param>
         public void rotate(double deg, DoublePair scrCent)
         {
-            _rotate(deg, scrCent);
-            rotation += deg;
-            if (System.Math.Abs(rotation) > 0)//a full circle has been made
+            //_rotate(deg, scrCent);
+            rot += deg;
+            if (System.Math.Abs(rot) > 0)//a full circle has been made
             {
-                if (rotation > 0)
-                    rotation -= 360;
-                else//rotation < 0
-                    rotation += 360;
+                if (rot > 0) rot -= 360;
+                else rot += 360;
             }
             //if (x.a / y.a == x.b / y.b) throw new SystemException("Basis vectors have become paralel!");
         }
+        /// <summary>Move the basis with the specified distances. Do not forget to set the rotation center after moving.</summary>
+        /// <param name="x">Distance on the X direction</param>
+        /// <param name="y">Distance on the Y direction</param>
         public void move(double x, double y)
+        {
+
+            DoublePair dp = rotatePoint(x, y, (-1) * rot, new DoublePair(0, 0));
+            this.x.a += dp.a; this.y.a += dp.a; c.a += dp.a;
+            this.x.b += dp.b; this.y.b += dp.b; c.b += dp.b;
+        }
+        public void moveBaseVals(double x, double y)
         {
             this.x.a += x; this.y.a += x; c.a += x;
             this.x.b += y; this.y.b += y; c.b += y;
