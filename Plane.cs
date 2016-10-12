@@ -43,11 +43,50 @@ namespace VBLEDrawing
         }
         //diversion in the basis vectors, because why not: setting it should cause all coordinates to diverse from their original positions, use for screen effects
         //center diversion accessors
+        private bool p3d;
+        /// <summary> Pseudo 3D effect. It vertically "smashes" the basis vectors using the diversion properties. Experimental. Does not give a realistic effect and it requires additional adjustments to work properly.</summary>
+        public bool pseudo3D
+        {
+            get { return p3d; }
+            set
+            {
+                p3d = value;
+                p3ddivset();
+            }
+        }
+        private void p3ddivset()
+        {
+            if (p3d)
+            {
+                Point x = basis.xVectorCoordinates(false, true, true);
+                Point y = basis.yVectorCoordinates(false, true, true);
+                Point c = basis.centerCoordinates(false, true, true);
+                double maxy = c.y;
+                double miny = c.y;
+                if (x.y > maxy) maxy = x.y;
+                if (y.y > maxy) maxy = y.y;
+                if (x.y < miny) miny = x.y;
+                if (y.y < miny) miny = y.y;
+                double avgy = (maxy + miny) / 2;
+                //double p3ddX = Math.Abs(avgy - x.y) / 3;
+                //double p3ddY = Math.Abs(avgy - y.y) / 3;
+                //double p3ddC = Math.Abs(avgy - c.y) / 3;
+                //if (avgy < x.y) { p3ddX = -1 * p3ddX; }
+                //if (avgy < y.y) { p3ddY = -1 * p3ddY; }
+                //if (avgy < c.y) { p3ddC = -1 * p3ddC; }
+                int hi = 3;
+                basis.xVectorDiversion = new DoublePair(basis.xVectorDiversion.a, (avgy - x.y) / hi);
+                basis.yVectorDiversion = new DoublePair(basis.yVectorDiversion.a, (avgy - y.y) / hi);
+                basis.centerDiversion = new DoublePair(basis.centerDiversion.a, (avgy - c.y) / hi);
+            }
+        }
         /// <summary>
         /// X and Y diversion of the center of the basis from its original position.
         /// Point and Tuple(double, double) can be implicitly converted to DoublePair.
         /// Use for visual effects.
         /// </summary>
+        private bool lton = true;
+        public bool lightsOn { get { return lton; } set { lton = value; } }
         public DoublePair centerDiversion
         {
             get { return _basis.centerDiversion; }
@@ -57,13 +96,21 @@ namespace VBLEDrawing
         public double centerDiversionX
         {
             get { return centerDiversion.a; }
-            set { _basis.centerDiversion = new DoublePair(value, _basis.centerDiversion.b); }
+            set
+            {
+                _basis.centerDiversion = new DoublePair(value, _basis.centerDiversion.b);
+                p3ddivset();
+            }
         }
         /// <summary> Y diversion of the center of the basis from its original position. Use for visual effects. </summary>
         public double centerDiversionY
         {
             get { return centerDiversion.b; }
-            set { _basis.centerDiversion = new DoublePair(_basis.centerDiversion.a, value); }
+            set
+            {
+                _basis.centerDiversion = new DoublePair(_basis.centerDiversion.a, value);
+                p3ddivset();
+            }
         }
         //X vector diversion accessors
         /// <summary> X and Y diversion of the X vector of the basis from its original position.
@@ -72,19 +119,31 @@ namespace VBLEDrawing
         public DoublePair xVectorDiversion
         {
             get { return _basis.xVectorDiversion; }
-            set { _basis.xVectorDiversion = new DoublePair(value.a, value.b); }
+            set
+            {
+                _basis.xVectorDiversion = new DoublePair(value.a, value.b);
+                p3ddivset();
+            }
         }
         /// <summary> X diversion of the X vector of the basis from its original position. Use for visual effects. </summary>
         public double xVectorDiversionX
         {
             get { return xVectorDiversion.a; }
-            set { _basis.xVectorDiversion = new DoublePair(value, _basis.xVectorDiversion.b); }
+            set
+            {
+                _basis.xVectorDiversion = new DoublePair(value, _basis.xVectorDiversion.b);
+                p3ddivset();
+            }
         }
         /// <summary> Y diversion of the X vector of the basis from its original position. Use for visual effects. </summary>
         public double xVectorDiversionY
         {
             get { return xVectorDiversion.b; }
-            set { _basis.xVectorDiversion = new DoublePair(_basis.xVectorDiversion.a, value); }
+            set
+            {
+                _basis.xVectorDiversion = new DoublePair(_basis.xVectorDiversion.a, value);
+                p3ddivset();
+            }
         }
         //Y vector diversion accessors
         /// <summary> X and Y diversion of the Y vector of the basis from its original position.
@@ -93,19 +152,31 @@ namespace VBLEDrawing
         public DoublePair yVectorDiversion
         {
             get { return _basis.yVectorDiversion; }
-            set { _basis.yVectorDiversion = new DoublePair(value.a, value.b); }
+            set
+            {
+                _basis.yVectorDiversion = new DoublePair(value.a, value.b);
+                p3ddivset();
+            }
         }
         /// <summary> X diversion of the Y vector of the basis from its original position. </summary>
         public double yVectorDiversionX
         {
-            get { return yVectorDiversion.a; }
+            get
+            {
+                p3ddivset();
+                return yVectorDiversion.a;
+            }
             set { _basis.yVectorDiversion = new DoublePair(value, _basis.yVectorDiversion.b); }//we are changing the X value, the Y value remain the same
         }
         /// <summary> Y diversion of the Y vector of the basis from its original position. Use for visual effects. </summary>
         public double yVectorDiversionY
         {
             get { return yVectorDiversion.b; }
-            set { _basis.yVectorDiversion = new DoublePair(_basis.yVectorDiversion.a, value); }//we are changing the Y value, the X value remain the same
+            set
+            {
+                _basis.yVectorDiversion = new DoublePair(_basis.yVectorDiversion.a, value);
+                p3ddivset();
+            }//we are changing the Y value, the X value remain the same
         }
         //images database - here images will be loaded and used
         private List<ImageResource> imgRes;
@@ -182,6 +253,7 @@ namespace VBLEDrawing
                 sectEntInd.Add(temp);
             }
             imgRes = new List<ImageResource>();
+            pseudo3D = false;
             //stopHart = false;
             //block = new List<System.Threading.AutoResetEvent>();
             entLock = new Object();
@@ -243,6 +315,12 @@ namespace VBLEDrawing
                 entCount++;
             }
         }
+        private void removeEntFromSects(int ind)//removing the entity's index from the sections it used to occupie
+        {
+            IntPair[] entSect = _entity[ind].section;
+            for (int i = 0; i < entSect.Count(); i++)
+                sectEntInd[entSect[i].b][entSect[i].a].Remove(ind);
+        }
         /// <summary> Removes entity at a specified index and returns it. </summary>
         /// <param name="index">Entity's index</param>
         /// <returns></returns>
@@ -251,9 +329,7 @@ namespace VBLEDrawing
             if (_entity[index] != null && index < _entity.Count)
             {
                 Drawable res = _entity[index];
-                IntPair[] entSect = _entity[index].section;
-                for (int i = 0; i < entSect.Count(); i++)//removing the entity's index from the sections it used to occupie
-                    sectEntInd[entSect[i].b][entSect[i].a].Remove(index);
+                removeEntFromSects(index);//removing the entity's index from the sections it used to occupie
                 if (index != _entity.Count - 1)//if the index is not the last entity's index
                 {
                     _entity[index] = null;
@@ -261,6 +337,24 @@ namespace VBLEDrawing
                 }
                 else _entity.RemoveAt(_entity.Count - 1);//if it is the last entity in the list
                 entCount--;
+                if (emptyEntInd.Count >= entCount / 2)//fill empty spaces if they have become too many
+                {
+                    for (int i = _entity.Count - 1;
+                        i >= 0 && emptyEntInd.Count > 0;
+                        i--)
+                    {
+                        if (_entity[i] != null)
+                        {
+                            _entity[i].indexInPlane = emptyEntInd.Min;
+                            removeEntFromSects(i);
+                            _entity[emptyEntInd.Min] = _entity[i];
+                            _entity.RemoveAt(i);
+                            for (int s = 0; s < _entity[emptyEntInd.Min].section.Count(); s++ )
+                                sectEntInd[_entity[emptyEntInd.Min].section[s].b][_entity[emptyEntInd.Min].section[s].a].Add(emptyEntInd.Min);
+                            emptyEntInd.Remove(emptyEntInd.Min);
+                        }
+                    }
+                }
                 return res;
             }
             else return null;
@@ -283,7 +377,11 @@ namespace VBLEDrawing
         /// <summary> Rotate the basis of the plane relative to the screen's center. </summary>
         /// <param name="deg">Degrees</param>
         /// <param name="screen">The screen</param>
-        public void rotate(double deg, ScreenData screen) { basis.rotate(deg, new DoublePair(screen.center.x, screen.center.y)); }
+        public void rotate(double deg, ScreenData screen)
+        {
+            basis.rotate(deg, new DoublePair(screen.center.x, screen.center.y));
+            p3ddivset();
+        }
         /// <summary>Rotation of the plane's basis. To rotate, use rotate(double, ScreenData)</summary>
         public double rotation { get { return basis.rotation; } }
         /// <summary> Move the basis of the plane by a specified distance.</summary>
@@ -339,7 +437,7 @@ namespace VBLEDrawing
         {
             //Refer to large comment #2 for info on how the algorithm detects which section the screen occupies
             List<IntPair> sector = new List<IntPair>();//sectors the screen occupies
-            IntPair scrCent = screen.center.intPlaneCoords(_basis, true, true);//screen center's coordinates according to the plane's basis
+            IntPair scrCent = screen.center.intPlaneCoords(_basis, true, true, true);//screen center's coordinates according to the plane's basis
             IntPair scrSect = new IntPair(scrCent.a / sectSize, scrCent.b / sectSize);//column, row; in which sector is the center of the screen located
             Point meetPoint = new Point(//nearest point, where four sectors border
                 Math.Round(Math.Round((double)scrCent.a / (double)sectSize)) * sectSize,//the coordinates of the top left corner of each
@@ -358,10 +456,10 @@ namespace VBLEDrawing
             }
             else
             {
-                Point upLt = new Point(0, 0); upLt = new Point(upLt.intPlaneCoords(_basis, true, true));// upLt = upLt.zoomedCoords(scrCent, 1 / _zoom);
-                Point upRt = new Point(screen.width, 0); upRt = new Point(upRt.intPlaneCoords(_basis, true, true));// upRt = upRt.zoomedCoords(scrCent, 1 / _zoom);
-                Point dnLt = new Point(0, screen.height); dnLt = new Point(dnLt.intPlaneCoords(_basis, true, true));// dnLt = dnLt.zoomedCoords(scrCent, 1 / _zoom);
-                Point dnRt = new Point(screen.width, screen.height); dnRt = new Point(dnRt.intPlaneCoords(_basis, true, true));// dnRt = dnRt.zoomedCoords(scrCent, 1 / _zoom);
+                Point upLt = new Point(0,/*        */0); upLt = new Point(upLt.intPlaneCoords(_basis, true, true, true));// upLt = upLt.zoomedCoords(scrCent, 1 / _zoom);
+                Point upRt = new Point(screen.width, 0); upRt = new Point(upRt.intPlaneCoords(_basis, true, true, true));// upRt = upRt.zoomedCoords(scrCent, 1 / _zoom);
+                Point dnLt = new Point(0,/*        */screen.height); dnLt = new Point(dnLt.intPlaneCoords(_basis, true, true, true));// dnLt = dnLt.zoomedCoords(scrCent, 1 / _zoom);
+                Point dnRt = new Point(screen.width, screen.height); dnRt = new Point(dnRt.intPlaneCoords(_basis, true, true, true));// dnRt = dnRt.zoomedCoords(scrCent, 1 / _zoom);
                 IntPair ul = new IntPair(upLt.x, upLt.y);//up left angle
                 IntPair ur = new IntPair(upRt.x, upRt.y);//up right
                 IntPair dl = new IntPair(dnLt.x, dnLt.y);//down left
@@ -369,17 +467,43 @@ namespace VBLEDrawing
                 addSects(sector, ul, ur, dl, dr, gfx, screen);
             }
             //tracking of what is already drawn and what not
-            SortedSet<int> forDrawing = new SortedSet<int>();//also used in the debug part
+            //SortedSet<int> forDrawing = new SortedSet<int>();//also used in the debug part
+            bool[] added = new bool[_entity.Count]; for (int b = 0; b < added.Count(); b++ ) { added[b] = false; }
+            List<int> forDrawing = new List<int>();
             lock (entLock)
             {
                 for (int sect = 0; sect < sector.Count; sect++)
                     for (int i = 0; i < sectEntInd[sector[sect].b][sector[sect].a].Count; i++)
-                        if (forDrawing.Add(sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i)))
-                            _entity[sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i)].draw(gfx, screen);
+                        if (added[_entity[sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i)].indexInPlane] == false)
+                        {
+                            int ei = sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i);
+                            _entity[ei].draw(gfx, screen);
+                            if (lton)
+                            {
+                                if (_entity[ei].lightShape != null)
+                                {
+                                    Line sl = _entity[ei].lightShape.shadowCastingLine(scrCent);
+                                    Line slsc = new Line(sl.start.intScrCoords(basis), sl.end.intScrCoords(basis));
+                                    Point scsc = new Point(scrCent); scsc = scsc.intScrCoords(basis);
+                                    System.Drawing.Pen yp = new System.Drawing.Pen(System.Drawing.Color.Yellow);
+                                    gfx.DrawLine(yp, slsc.start, slsc.end);
+                                    gfx.DrawLine(yp, slsc.start, scsc);
+                                    gfx.DrawLine(yp, slsc.end, scsc);
+                                }
+                            }
+                            added[_entity[sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i)].indexInPlane] = true;
+                            forDrawing.Add(ei);
+                        }
+                        //if (forDrawing.Add(sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i)))
+                        //    _entity[sectEntInd[sector[sect].b][sector[sect].a].ElementAt(i)].draw(gfx, screen);
+                //for (int fd = 0; fd < forDrawing.Count; fd++)
+                //    if (_entity[forDrawing[fd]] != null)
+                //        _entity[forDrawing[fd]].drawn = false;
             }
             //==============
             if (debug)
             {
+
                 foreach (int d in forDrawing)
                 {
                     _entity[d].drawInfo(gfx, screen);

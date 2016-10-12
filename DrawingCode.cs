@@ -58,40 +58,43 @@ namespace VBLEDrawing
         /// <param name="zoom">Should zoom be calculated</param>
         /// <param name="div">Should diversions be calculated</param>
         /// <returns>Double coordinates on the screen</returns>
-        public DoublePair doubleScrCoords(Basis planeBasis, bool zoom, bool div)
+        public DoublePair doubleScrCoords(Basis planeBasis, bool zoom, bool div, bool rotation)
         {//coordinates of the point relative to the screen's basis
             //each dot is treated like a vector - this is how a vector's coordinates change when switching the basis
             double OXlen;
             double OYlen;
-            if       (zoom && div) { OXlen = planeBasis.OXlen;         OYlen = planeBasis.OYlen; }
-            else if (!zoom && div) { OXlen = planeBasis.OXlenNoZoom;   OYlen = planeBasis.OXlenNoZoom; }
-            else if (zoom && !div) { OXlen = planeBasis.OXlenNoDiv;    OYlen = planeBasis.OYlenNoDiv; }
-            else /*!zoom && !div*/ { OXlen = planeBasis.OXlenBaseVals; OYlen = planeBasis.OYlenBaseVals; }
+            if (zoom && div) { OXlen = planeBasis.OXlen; OYlen = planeBasis.OYlen; }
+            else if (!zoom && div) { OXlen = planeBasis.OXlenNoZoom; OYlen = planeBasis.OXlenNoZoom; }
+            else if (zoom && !div) { OXlen = planeBasis.OXlenNoDiv; OYlen = planeBasis.OYlenNoDiv; }
+            else /*!zoom && !div */ { OXlen = planeBasis.OXlenBaseVals; OYlen = planeBasis.OYlenBaseVals; }
+            Point vx = planeBasis.xVectorCoordinates(div, zoom, rotation);
+            Point vy = planeBasis.yVectorCoordinates(div, zoom, rotation);
+            Point bc = planeBasis.centerCoordinates(div, zoom, rotation);
             //Refer to LARGE COMMENT #1 for explaining the divisions by OXlen and OYlen
-            double resx = (planeBasis.xVector.x - planeBasis.center.x) * _x / OXlen + (planeBasis.yVector.x - planeBasis.center.x) * _y / OYlen + planeBasis.center.x;
-            double resy = (planeBasis.xVector.y - planeBasis.center.y) * _x / OXlen + (planeBasis.yVector.y - planeBasis.center.y) * _y / OYlen + planeBasis.center.y;
+            double resx = (vx.x - bc.x) * _x / OXlen + (vy.x - bc.x) * _y / OYlen + bc.x;
+            double resy = (vx.y - bc.y) * _x / OXlen + (vy.y - bc.y) * _y / OYlen + bc.y;
             return new DoublePair((int)resx, (int)resy);
         }
         /// <summary> Double coordinates of a point on the plane relative to the screen. Equivalent to calling return doubleScrCoords(planeBasis, true, true). </summary>
         /// <param name="planeBasis">Plane's basis</param>
         /// <returns>Double coordinates on the screen</returns>
-        public DoublePair doubleScrCoords(Basis planeBasis) { return doubleScrCoords(planeBasis, true, true); }
+        public DoublePair doubleScrCoords(Basis planeBasis) { return doubleScrCoords(planeBasis, true, true, true); }
         /// <summary> Integer coordinates of a point on the plane relative to the screen. </summary>
         /// <param name="planeBasis">Plane's basis</param>
         /// <param name="zoom">Should zoom be calculated</param>
         /// <param name="div">Should diversions be calculated</param>
         /// <returns>Rounded integer coordinates on the screen</returns>
-        public IntPair intScrCoords(Basis planeBasis, bool zoom, bool div)//int coordinates without zoom
+        public IntPair intScrCoords(Basis planeBasis, bool zoom, bool div, bool rotation)//int coordinates without zoom
         {
-            DoublePair res = doubleScrCoords(planeBasis, zoom, div);
+            DoublePair res = doubleScrCoords(planeBasis, zoom, div, rotation);
             return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
         }
         /// <summary> Integer coordinates of a point on the plane relative to the screen. Equivalent to calling return intScrCoords(planeBasis, true, true). </summary>
         /// <param name="planeBasis">Plane's basis</param>
         /// <returns>Rounded integer coordinates on the screen</returns>
-        public IntPair intScrCoords(Basis planeBasis)//int coordinates with zoom
+        public IntPair intScrCoords(Basis planeBasis)
         {
-            DoublePair res = doubleScrCoords(planeBasis, true, true);
+            DoublePair res = doubleScrCoords(planeBasis, true, true, true);
             return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
         }
         /// <summary> Double coordinates of a point on the screen relative to the plane. </summary>
@@ -99,7 +102,7 @@ namespace VBLEDrawing
         /// <param name="zoom">Should zoom be calculated</param>
         /// <param name="div">Should diversions be calculated</param>
         /// <returns>Double coordinates relative to the plane</returns>
-        public DoublePair dobulePlaneCoords(Basis planeBasis, bool zoom, bool div)
+        public DoublePair doublePlaneCoords(Basis planeBasis, bool zoom, bool div, bool rotation)
         {
             double OXlen;
             double OYlen;
@@ -107,10 +110,13 @@ namespace VBLEDrawing
             else if (zoom && !div) { OXlen = planeBasis.OXlenNoDiv; OYlen = planeBasis.OYlenNoDiv; }
             else if (!zoom && div) { OXlen = planeBasis.OXlenNoZoom; OYlen = planeBasis.OYlenNoZoom; }
             else { OXlen = planeBasis.OXlenBaseVals; OYlen = planeBasis.OYlenBaseVals; }
-            double ox1 = (planeBasis.xVector.x - planeBasis.center.x) / OXlen;
-            double oy1 = (planeBasis.xVector.y - planeBasis.center.y) / OXlen;
-            double ox2 = (planeBasis.yVector.x - planeBasis.center.x) / OYlen;
-            double oy2 = (planeBasis.yVector.y - planeBasis.center.y) / OYlen;
+            Point vx = planeBasis.xVectorCoordinates(div, zoom, rotation);
+            Point vy = planeBasis.yVectorCoordinates(div, zoom, rotation);
+            Point bc = planeBasis.centerCoordinates(div, zoom, rotation);
+            double ox1 = (vx.x - bc.x) / OXlen;
+            double oy1 = (vx.y - bc.y) / OXlen;
+            double ox2 = (vy.x - bc.x) / OYlen;
+            double oy2 = (vy.y - bc.y) / OYlen;
             double resx;
             double resy;
             if (ox2 == 0.0)
@@ -130,21 +136,21 @@ namespace VBLEDrawing
         /// <summary> Double coordinates of a point on the screen relative to the plane. Equivalent to calling doublePlaneCoords(planeBasis, true, true). </summary>
         /// <param name="planeBasis">Basis of the plane</param>
         /// <returns>Double coordinates relative to the plane</returns>
-        public DoublePair dobulePlaneCoords(Basis planeBasis) { return dobulePlaneCoords(planeBasis, true, true); }
+        public DoublePair doublePlaneCoords(Basis planeBasis) { return doublePlaneCoords(planeBasis, true, true, true); }
         /// <summary> Integer coordinates of a point on the screen relative to the plane. </summary>
         /// <param name="planeBasis">Basis of the plane</param>
         /// <param name="zoom">Should zoom be calculated</param>
         /// <param name="div">Should diversions be calculated</param>
         /// <returns>Rounded integer coordinates relative to the plane</returns>
-        public IntPair intPlaneCoords(Basis planeBasis, bool zoom, bool div)
+        public IntPair intPlaneCoords(Basis planeBasis, bool zoom, bool div, bool rotation)
         {//the coordinates of the point on the screen relative to the plane's basis
-            DoublePair res = dobulePlaneCoords(planeBasis, zoom, div);
+            DoublePair res = doublePlaneCoords(planeBasis, zoom, div, rotation);
             return new IntPair((int)Math.Round(res.a), (int)Math.Round(res.b));
         }
         /// <summary> Integer coordinates of a point on the screen relative to the plane. Equivalent to calling intPlaneCoords(planeBasis, true, true). </summary>
         /// <param name="planeBasis">Basis of the plane</param>
         /// <returns>Rounded integer coordinates relative to the plane</returns>
-        public IntPair intPlaneCoords(Basis planeBasis) { return intPlaneCoords(planeBasis, true, true); }
+        public IntPair intPlaneCoords(Basis planeBasis) { return intPlaneCoords(planeBasis, true, true, true); }
         /// <summary> Coordinates of the point after zooming. </summary>
         /// <param name="center">Center of zooming</param>
         /// <param name="zoom">Zoom value</param>
@@ -154,6 +160,15 @@ namespace VBLEDrawing
             return new DoublePair(
                 (_x - center.x) * zoom + center.x,
                 (_y - center.y) * zoom + center.y);
+        }
+
+        public DoublePair rotated(double deg, DoublePair rotCent)
+        {
+            double rads = 0.0174533 * deg;
+            DoublePair res = new DoublePair(
+                ((_x - rotCent.a) * System.Math.Cos(rads) - (_y - rotCent.b) * System.Math.Sin(rads)) + rotCent.a,
+                ((_x - rotCent.a) * System.Math.Sin(rads) + (_y - rotCent.b) * System.Math.Cos(rads)) + rotCent.b);
+            return res;
         }
         //public bool isInLine(double[] ln) { return ln[0] * _x + ln[1] * _y + ln[2] == 0; }
         //public bool isInLine(Line ln) { return isInLine(ln.getEquation()); }
@@ -285,11 +300,12 @@ namespace VBLEDrawing
         {
             double[] lnA = getEquation();
             double[] lnB = ln.getEquation();
-            return lnA[0] / lnB[0] == lnA[1] / lnB[1] && lnA[1] / lnB[1] == lnA[2] / lnB[2];
+            return lnA[0] / lnB[0] == lnA[1] / lnB[1] ||
+                lnA[0] == lnB[0] ||
+                lnA[1] == lnB[1];
         }
         private Point crossingPoint(double[] lnA, double[] lnB)
         {
-            
             double[] _lnA = lnA;
             double[] _lnB = lnB;
             if (lnA[0] == 0)
@@ -310,27 +326,28 @@ namespace VBLEDrawing
         {
             if (paralel(ln))
             {
-                double mx1 = st.x;
-                double my1 = st.y;
-                double mx2 = ln.end.x;
-                double my2 = ln.end.y;
-                if (ln.start.x > mx1) mx1 = ln.start.x;
-                if (ln.end.x > mx1) mx1 = ln.end.x;
-                if (en.x > mx1) mx1 = en.x;
+                //double mx1 = st.x;
+                //double my1 = st.y;
+                //double mx2 = ln.end.x;
+                //double my2 = ln.end.y;
+                //if (ln.start.x > mx1) mx1 = ln.start.x;
+                //if (ln.end.x > mx1) mx1 = ln.end.x;
+                //if (en.x > mx1) mx1 = en.x;
 
-                if (ln.start.y > my1) my1 = ln.start.y;
-                if (ln.end.y > my1) my1 = ln.end.y;
-                if (en.y > my1) my1 = en.y;
+                //if (ln.start.y > my1) my1 = ln.start.y;
+                //if (ln.end.y > my1) my1 = ln.end.y;
+                //if (en.y > my1) my1 = en.y;
 
-                if (st.x < mx2) mx2 = st.x;
-                if (en.x < mx2) mx2 = en.x;
-                if (ln.start.x < mx2) mx2 = ln.start.x;
+                //if (st.x < mx2) mx2 = st.x;
+                //if (en.x < mx2) mx2 = en.x;
+                //if (ln.start.x < mx2) mx2 = ln.start.x;
 
-                if (st.y < my2) my2 = st.y;
-                if (en.y < my2) my2 = en.y;
-                if (ln.start.y < my2) my2 = ln.start.y;
+                //if (st.y < my2) my2 = st.y;
+                //if (en.y < my2) my2 = en.y;
+                //if (ln.start.y < my2) my2 = ln.start.y;
 
-                return new Point((mx1 + mx2) / 2, (my1 + my2) / 2);
+                //return new Point((mx1 + mx2) / 2, (my1 + my2) / 2);
+                return null;
             }
             double[] lnA = getEquation();//lnA[0] * X + lnA[1] * Y + lnA[2] = 0
             double[] lnB = ln.getEquation();//lnB[0] * X + lnB[1] * Y + lnB[2] = 0
@@ -338,11 +355,14 @@ namespace VBLEDrawing
             if (lnB[0] == 0.0 && lnB[1] == 0.0 && lnB[2] == 0.0) return ln.start;
             if (crosses(lnA, ln, lnB))
             {//by this point it is certain, that the two lines cross
-
-                //if (lnA[0] == 0)
-                //    return crossingPoint(lnB, lnA);
-                //if (lnB[0] == 0)
-                //    return crossingPoint(lnA, lnB);
+                if (lnA[0] == 0 && lnB[1] == 0)
+                    return new Point(ln.start.x, st.y);//passed line is vertical - X does not change; the local line is horizontal - Y does not change
+                if (lnA[1] == 0 && lnB[0] == 1)
+                    return new Point(st.x, ln.end.y);//vice versa
+                if (lnA[0] == 0)
+                    return crossingPoint(lnB, lnA);
+                if (lnB[0] == 0)
+                    return crossingPoint(lnA, lnB);
                 return crossingPoint(lnA, lnB);
             }
             else return null;
@@ -357,46 +377,66 @@ namespace VBLEDrawing
         /// <returns>The visible part of the line</returns>
         public Line lineToDraw(Basis basis, ScreenData screen)
         {
-            Point stp = st;
-            Point enp = en;
-            Point upCrs = crossingPoint(screen.upperSide);
-            Point dnCrs = crossingPoint(screen.bottomSide);
-            Point rtCrs = crossingPoint(screen.rightSide);
-            Point ltCrs = crossingPoint(screen.leftSide);
-            if (upCrs != null) stp = upCrs;
-            if (dnCrs != null) if (stp == st) stp = dnCrs; else enp = dnCrs;
-            if (rtCrs != null) if (stp == st) stp = rtCrs; else enp = rtCrs;
-            if (ltCrs != null) if (stp == st) stp = ltCrs; else enp = ltCrs;
-            return new Line(stp, enp);
-            //if (screen.isPointInside(st) && screen.isPointInside(en))
-            //    return new Line(st.x, st.y, en.x, en.y);
-            //Point stPnt = null;
-            //Point enPnt = null;
-            //Point upCrs = crossingPoint(screen.upperSide);
-            //Point dnCrs = crossingPoint(screen.bottomSide);
-            //Point rtCrs = crossingPoint(screen.rightSide);
-            //Point ltCrs = crossingPoint(screen.leftSide);
-            //if (screen.isPointInside(st) != screen.isPointInside(en))
-            //{
-            //    if (upCrs != null) stPnt = upCrs;
-            //    if (dnCrs != null) stPnt = dnCrs;
-            //    if (ltCrs != null) stPnt = ltCrs;
-            //    if (rtCrs != null) stPnt = rtCrs;
-            //    if (screen.isPointInside(st)) return new Line(stPnt.x, stPnt.y, st.x, st.y);
-            //    if (screen.isPointInside(en)) return new Line(stPnt.x, stPnt.y, en.x, en.y);
-            //}
-            //if (upCrs != null && stPnt != upCrs) enPnt = upCrs;
-            //if (dnCrs != null && stPnt != dnCrs) enPnt = dnCrs;
-            //if (ltCrs != null && stPnt != ltCrs) enPnt = ltCrs;
-            //if (rtCrs != null && stPnt != rtCrs) enPnt = rtCrs;
-            ////if (enPnt == null)//one end is inside
-            ////{
-            ////    if (screen.isPointInside(st)) return new Line(stPnt.x, stPnt.y, st.x, st.y);
-            ////    if (screen.isPointInside(en)) return new Line(stPnt.x, stPnt.y, en.x, en.y);
-            ////}
-            //return new Line(stPnt.x, stPnt.y, enPnt.x, enPnt.y);
+            if (screen.isPointInside(st) && screen.isPointInside(en))
+                return this;
+            if (screen.isPointInside(st) == false && screen.isPointInside(en) == false)
+            {
+                Point stp = st;
+                Point enp = en;
+                Point upCrs = crossingPoint(screen.upperSide);
+                Point dnCrs = crossingPoint(screen.bottomSide);
+                Point rtCrs = crossingPoint(screen.rightSide);
+                Point ltCrs = crossingPoint(screen.leftSide);
+                if (upCrs != null)
+                {
+                    stp = upCrs;
+                    if (dnCrs != null) enp = dnCrs;
+                    if (rtCrs != null) enp = rtCrs;
+                    if (ltCrs != null) enp = ltCrs;
+                    return new Line(stp, enp);
+                }
+                if (dnCrs != null)
+                {
+                    stp = dnCrs;
+                    if (upCrs != null) enp = upCrs;
+                    if (rtCrs != null) enp = rtCrs;
+                    if (ltCrs != null) enp = ltCrs;
+                    return new Line(stp, enp);
+                }
+                if (rtCrs != null)
+                {
+                    stp = rtCrs;
+                    if (dnCrs != null) enp = dnCrs;
+                    if (upCrs != null) enp = upCrs;
+                    if (ltCrs != null) enp = ltCrs;
+                    return new Line(stp, enp);
+                }
+                if (ltCrs != null)
+                {
+                    stp = ltCrs;
+                    if (dnCrs != null) enp = dnCrs;
+                    if (rtCrs != null) enp = rtCrs;
+                    if (upCrs != null) enp = upCrs;
+                    return new Line(stp, enp);
+                }
+            }
+            Point inp;
+            if (screen.isPointInside(st))
+                inp = st;
+            else
+                inp = en;
+            Point crs = crossingPoint(screen.upperSide);
+            if (crs != null) return new Line(crs, inp);
+            crs = crossingPoint(screen.bottomSide);
+            if (crs != null) return new Line(crs, inp);
+            crs = crossingPoint(screen.rightSide);
+            if (crs != null) return new Line(crs, inp);
+            crs = crossingPoint(screen.leftSide);
+            if (crs != null) return new Line(crs, inp);
+            else return null;
         }
     }
+    /// <summary> Interface for all entites which are going to be drawn on the screen. BasicDrawableData class has the needed data, which you will need for the interface. </summary>
     public interface Drawable
     {
         /// <summary> The type of the Drawable as an integer. May prove useless, but it can be used to see what type of drawable it is, without the need to make any type casting.</summary>
@@ -409,6 +449,7 @@ namespace VBLEDrawing
         IntPair[] section { get; }
         /// <summary> Has the entity moved. Both accessors are added to allow the entity to be manipulated from anywhere, not just from inside. </summary>
         bool moved { get; set; }
+        LightShape lightShape { get; set; }
         /// <summary> Draw the info about the entity. </summary>
         /// <param name="gfx">Grapics</param>
         /// <param name="screen">Screen data</param>
@@ -447,6 +488,7 @@ namespace VBLEDrawing
             moved = false;
             section = null;
             indexInPlane = -1;
+            drawn = false;
             image = new List<int>();
         }
         /// <summary> The plane, to which the entity belongs. </summary>
@@ -455,6 +497,8 @@ namespace VBLEDrawing
         public bool moved;
         /// <summary> Which sections are occupied by the entity. </summary>
         public IntPair[] section;
+        /// <summary> Experimental! Keeps track if the entity has been already drawn or not on the current cycle. </summary>
+        public bool drawn;
         /// <summary> Which is the index of the entity in the plane it belongs to. </summary>
         public int indexInPlane;
         private List<int> image;
@@ -859,70 +903,166 @@ namespace VBLEDrawing
             return sections.ToArray();
         }
     }
+    /// <summary> Algorithms for drawing. You can use your own if mine prove to be slow (which they probably will).</summary>
     public static class DrawingAlgorithms
     {
-        /// <summary> Draw a rotated image. Rotation is relative to the screen! Use primerally is you want the image to be stationary relative to the plane.</summary>
-        /// <param name="img">Image</param>
-        /// <param name="deg">Degrees of rotation</param>
-        /// <param name="hq">Draw with HighQualityBicubic enabled</param>
-        /// <returns>The rotated image</returns>
-        public static System.Drawing.Bitmap rotatedImage(System.Drawing.Bitmap img, double deg, bool hq)
+        static System.Drawing.Drawing2D.GraphicsState gfxgs;
+        private static void rotateGFX(System.Drawing.Graphics gfx, int posX, int posY, double deg, bool hq)
         {
-            int diag = (int)Math.Round(Math.Sqrt(img.Width * img.Width + img.Height * img.Height));
-            System.Drawing.Bitmap res = new System.Drawing.Bitmap(diag, diag);
-            System.Drawing.Graphics gfx = System.Drawing.Graphics.FromImage(res);
+            gfxgs = gfx.Save();
             if (hq) gfx.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            DoublePair rotCent = new DoublePair(diag / 2, diag / 2);
-            //DoublePair rotCent = new DoublePair(0, 0);
-            gfx.TranslateTransform((float)rotCent.a, (float)rotCent.b);
+            gfx.TranslateTransform(posX, posY);
             gfx.RotateTransform((float)deg);
-            gfx.TranslateTransform((-1) * (float)rotCent.a, (-1) * (float)rotCent.b);
-            gfx.DrawImage(img, (diag - img.Width) / 2, (diag - img.Height) / 2, img.Width, img.Height);
+            gfx.TranslateTransform((-1) * posX, (-1) * posY);
+        }
+        /// <summary> Draws a specified image on a specified location. POSITION IS THE CENTER OF THE IMAGE! </summary>
+        /// <param name="gfx">Graphics to draw with</param>
+        /// <param name="img">Image</param>
+        /// <param name="px">X coordinate of the center of the image</param>
+        /// <param name="py">Y coordinate of the center of the image</param>
+        public static void drawImage(System.Drawing.Graphics gfx, System.Drawing.Bitmap img, int px, int py, double deg, double zoom, bool hq)
+        {
+            if (deg == 0 && zoom == 0.0)
+                gfx.DrawImage(img, px - img.Width / 2, py - img.Height / 2, img.Width, img.Height);
+            else if (deg == 0 && zoom != 0.0)
+            {
+                int imgW = (int)(img.Width * zoom);
+                int imgH = (int)(img.Height * zoom);
+                gfx.DrawImage(img, px - imgW / 2, py - imgH / 2, imgW, imgH);
+            }
+            else
+            {
+                int imgW = (int)(img.Width * zoom);
+                int imgH = (int)(img.Height * zoom);
+                rotateGFX(gfx, px, py, deg, hq);
+                gfx.DrawImage(img, px - imgW / 2, py - imgH / 2, imgW, imgH);
+                gfx.Restore(gfxgs);
+            }
+        }
+        /// <summary> Draw a displaced image. Displacement is seamless, or the image "comes out" of the opposite side.</summary>
+        /// <param name="gfx">Graphics to draw with</param>
+        /// <param name="img">Image</param>
+        /// <param name="_posX">The X coordinate of the center of the drawn image</param>
+        /// <param name="_posY">The Y coordinate of the center of the drawn image</param>
+        /// <param name="dispX">Displacement on X</param>
+        /// <param name="dispY">Displacement on Y</param>
+        public static void drawDisplacedImage(System.Drawing.Graphics gfx, System.Drawing.Bitmap img, int posX, int posY, int dispX, int dispY, double zoom)
+        {
+            dispX = dispX % img.Width;
+            dispY = dispY % img.Height;
+            if (dispX < 0) dispX = img.Width + dispX;
+            if (dispY < 0) dispY = img.Height + dispY;
+            int ziw = (int)Math.Round(img.Width * zoom);
+            int zih = (int)Math.Round(img.Height * zoom);
+            int _dispX = (int)Math.Round(dispX * zoom);
+            int _dispY = (int)Math.Round(dispY * zoom);
+            int _posX = posX - ziw / 2;
+            int _posY = posY - zih / 2;
+            int x = _dispX % ziw;
+            int y = _dispY % zih;
+            if (dispX == 0 && dispY == 0)
+            {
+                gfx.DrawImage(img, _posX, _posY, ziw, zih);
+                return;//Why would you even want to have no displacement when calling the method? Why are you here?
+            }
+            if (x < 0) x = ziw + x;
+            if (y < 0) y = zih + y;
+            int mpw = ziw - x;
+            int mph = zih - y;
+            //drawPortionOfImage(gfx, img, x, y, mpw, mph, _posX, _posY);
+            //drawPortionOfImage(gfx, img, _dispX % img.Width, _dispY % img.Height, img.Width - dispX, img.Height - dispY, x, y, mpw, mph);
+            gfx.DrawImage(img,
+                new System.Drawing.Rectangle(_posX, _posY, mpw, mph),
+                new System.Drawing.Rectangle(dispX, dispY, img.Width - dispX, img.Height - dispY),
+                System.Drawing.GraphicsUnit.Pixel);
+            if (x != 0 && y != 0)
+            {
+                //drawPortionOfImage(gfx, img, 0, 0,/*   */x,/*   */y, _posX + mpw, _posY + mph);
+                //drawPortionOfImage(gfx, img, x, 0, ziw - x,/*   */y, _posX,/*   */_posY + mph);
+                //drawPortionOfImage(gfx, img, 0, y,/*   */x, zih - y, _posX + mpw, _posY);
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX + ziw - _dispX, _posY + zih - _dispY, _dispX, _dispY),
+                    new System.Drawing.Rectangle(0, 0, dispX, dispY),
+                    System.Drawing.GraphicsUnit.Pixel);
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX, _posY + zih - _dispY, ziw - _dispX, _dispY),
+                    new System.Drawing.Rectangle(dispX, 0, img.Width - dispX, dispY),
+                    System.Drawing.GraphicsUnit.Pixel);
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX + ziw - _dispX, _posY, _dispX, zih - _dispY),
+                    new System.Drawing.Rectangle(0, dispY, dispX, img.Height - dispY),
+                    System.Drawing.GraphicsUnit.Pixel);
+            }
+            //if the point with coordinates (dispX % img.Width, dispY % img.Height) lies on one of the sides of the image, the image can be clipped in only two parts, instead of 4
+            else if (x == 0 && y != 0)//only vertical displacement
+            {
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX, _posY, ziw, zih - _dispY),
+                    new System.Drawing.Rectangle(0, dispY, img.Width, img.Height - dispY),
+                    System.Drawing.GraphicsUnit.Pixel);
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX, _posY + zih - _dispY, ziw, _dispY),
+                    new System.Drawing.Rectangle(0, 0, img.Width, dispY),
+                    System.Drawing.GraphicsUnit.Pixel);
+            }
+            else if (x != 0 && y == 0)
+            {
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX, _posY, ziw - _dispX, zih),
+                    new System.Drawing.Rectangle(dispX, 0, img.Width - dispX, img.Height),
+                    System.Drawing.GraphicsUnit.Pixel);
+                gfx.DrawImage(img,
+                    new System.Drawing.Rectangle(_posX + ziw - _dispX, _posY, _dispX, zih),
+                    new System.Drawing.Rectangle(0, 0, dispX, img.Height),
+                    System.Drawing.GraphicsUnit.Pixel);
+            }
+        }
+        /// <summary> Creates a displaced version of the specified image with the specified displacement. Displacement is seamless, or the image "comes out" of the opposite side.</summary>
+        /// <param name="img">Image</param>
+        /// <param name="disp">Displacement in pixels</param>
+        /// <returns>Displaced image</returns>
+        public static System.Drawing.Bitmap displacedImage(System.Drawing.Bitmap img, IntPair disp, double zoom)
+        {
+            System.Drawing.Bitmap res = new System.Drawing.Bitmap((int)(img.Width * zoom), (int)(img.Height * zoom));
+            System.Drawing.Graphics gfx = System.Drawing.Graphics.FromImage(res);
+            drawDisplacedImage(gfx, img, res.Width / 2, res.Height / 2, disp.a, disp.b, zoom);
             return res;
         }
-        /// <summary> Draw a specified potion of the image on a specified location. Maintains the original size of the porion.</summary>
-        /// <param name="gfx">Graphics</param>
-        /// <param name="img">Image</param>
-        /// <param name="px">X coordinate of the upper left corner of the portion</param>
-        /// <param name="py">Y coordinate of the upper left corner of the portion</param>
-        /// <param name="width">Width of the portion</param>
-        /// <param name="height">Height of the portion</param>
-        /// <param name="cx">X coordinate where to draw the portion</param>
-        /// <param name="cy">Y coordinate where to draw the portion</param>
-        public static void drawPortionOfImage(
-            System.Drawing.Graphics gfx, System.Drawing.Bitmap img,
-            int px, int py, int width, int height, int cx, int cy)
-        {
-            System.Drawing.Rectangle p = new System.Drawing.Rectangle(px, py, width, height);
-            gfx.DrawImage(img, p, cx, cy, p.Width, p.Height, System.Drawing.GraphicsUnit.Pixel);
-        }
-        /// <summary>Dispaced image. Requires some optimization.</summary>
+        /// <summary> Creates a displaced version of the specified image with the specified displacement. Displacement is seamless, or the image "comes out" of the opposite side.</summary>
         /// <param name="img">Image</param>
         /// <param name="dispX">Displacement on X</param>
         /// <param name="dispY">Displacement on Y</param>
         /// <returns>Displaced image</returns>
-        public static System.Drawing.Bitmap displacedImage(System.Drawing.Bitmap img, int dispX, int dispY)
+        public static System.Drawing.Bitmap displacedImage(System.Drawing.Bitmap img, int dispX, int dispY, double zoom)
         {
-            int x = dispX % img.Width;
-            int y = dispY % img.Height;
-            if (x < 0) x = img.Width + x;
-            if (y < 0) y = img.Height + y;
-            if (x == 0 && y == 0) return img;//Why would you even want to have no displacement when calling the method? Why are you here?
+            return displacedImage(img, new IntPair(dispX, dispY), zoom);
+        }
+        public static void drawRotDispImage(
+            System.Drawing.Graphics gfx,
+            System.Drawing.Bitmap img,
+            int posX, int posY,
+            int dispX, int dispY,
+            double deg, double zoom, bool hq)
+        {
+            rotateGFX(gfx, posX, posY, deg, hq);
+            drawDisplacedImage(gfx, img, posX, posY, dispX, dispY, zoom);
+            gfx.Restore(gfxgs);
+        }
+        public static System.Drawing.Bitmap rotDispImage(
+            System.Drawing.Bitmap img,
+            int dispX, int dispY,
+            double deg, double zoom, bool hq)
+        {
             System.Drawing.Bitmap res = new System.Drawing.Bitmap(img.Width, img.Height);
             System.Drawing.Graphics gfx = System.Drawing.Graphics.FromImage(res);
-            System.Drawing.Rectangle mp = new System.Drawing.Rectangle(x, y, img.Width - x, img.Height - y);//main part
-            gfx.DrawImage(img, mp, 0, 0, mp.Width, mp.Height, System.Drawing.GraphicsUnit.Pixel);
-            if (x != 0 && y != 0)
-            {
-                drawPortionOfImage(gfx, img, 0, 0,/* Making  */x,/*  things  */y, mp.Width, mp.Height);
-                drawPortionOfImage(gfx, img, x, 0, img.Width - x,/*  easier  */y, 0,/* to */mp.Height);
-                drawPortionOfImage(gfx, img, 0, y,/*  read!  */x, img.Height - y, mp.Width, 0);
-            }
-            //if the point with coordinates (dispX % img.Width, dispY % img.Height) lies on one of the sides of the image, the image can be clipped in only two parts, instead of 4
-            if (x == 0 && y != 0) drawPortionOfImage(gfx, img, x, 0, img.Width - x,/*          */y, 0,/*    */mp.Height);
-            if (x != 0 && y == 0) drawPortionOfImage(gfx, img, 0, y,/*         */x, img.Height - y, mp.Width, 0);
+            drawRotDispImage(gfx, img, img.Width / 2, img.Height / 2, dispX, dispY, deg, zoom, hq);
             return res;
         }
+        /// <summary> Creates a tiled image from the specified image. Note - System.Drawing sucks at handling large images so use the generated images with caution. </summary>
+        /// <param name="img">Image</param>
+        /// <param name="width">Width of the new image</param>
+        /// <param name="height">Height of the new image</param>
+        /// <returns>The tiled image</returns>
         public static System.Drawing.Bitmap tiledImage(System.Drawing.Bitmap img, int width, int height)
         {
             if (width == img.Width && height == img.Height) return img;
@@ -931,6 +1071,144 @@ namespace VBLEDrawing
             System.Drawing.TextureBrush tb = new System.Drawing.TextureBrush(img);
             gfx.FillRectangle(tb, 0, 0, width, height);
             return res;
+        }
+        /// <summary> Draw a tiled image in a specified rectangle.</summary>
+        /// <param name="gfx">Graphics to draw with</param>
+        /// <param name="img">Image to fill rectangle with</param>
+        /// <param name="x">X coordinate of the upper left corner</param>
+        /// <param name="y">Y coordinate of the upper left corner</param>
+        /// <param name="width">Width of the rectangle</param>
+        /// <param name="height">Height of the rectangle</param>
+        public static void drawTiledImage(System.Drawing.Graphics gfx, System.Drawing.Bitmap img, int x, int y, int width, int height)
+        {
+            System.Drawing.Rectangle r = new System.Drawing.Rectangle(x, y, width, height);
+            System.Drawing.TextureBrush tb = new System.Drawing.TextureBrush(img);
+            gfx.FillRectangle(tb, r);
+        }
+        private static void dtr(System.Drawing.Graphics gfx, System.Drawing.Bitmap img, System.Drawing.Point[] pnt, double deg, Point p, double zoom)
+        {
+            System.Drawing.Bitmap di = displacedImage(img,//Refer to large comment #2
+                (-1) * (int)(((int)(p.x) % (int)(img.Width * zoom)) / zoom),
+                (-1) * (int)(((int)(p.y) % (int)(img.Height * zoom)) / zoom), zoom);
+            rotateGFX(gfx, (int)p.x, (int)p.y, deg, false);
+            System.Drawing.TextureBrush tb = new System.Drawing.TextureBrush(di);
+            gfx.FillPolygon(tb, pnt);
+            gfx.Restore(gfxgs);
+        }
+        /// <summary>Draws a textured polygon. The texture is drawn according to the rotation and position of the camera. Use larger images for textures with caution, System.Drawing is not too good at handling larger images.</summary>
+        /// <param name="gfx">Graphics to draw with</param>
+        /// <param name="img">Image to fill polygon with</param>
+        /// <param name="pnt">The points forming the polygon</param>
+        /// <param name="deg">Rotation of the screen</param>
+        /// <param name="or">Upper left corner of the polygon, in which the polygon can fit, if the screen is not rotated</param>
+        public static void drawTexturedRectangle(System.Drawing.Graphics gfx, System.Drawing.Bitmap img, System.Drawing.Point[] pnt, double deg, Point or, double zoom)
+        {
+            System.Drawing.Point[] pnt0 = new System.Drawing.Point[pnt.Count()];
+            for (int i = 0; i < pnt.Count(); i++)
+            {
+                Point p = ((Point)pnt[i]).rotated(deg * (-1), (DoublePair)or);//the coordinates get further rotated when the graphics' matrics gets rotated, that is why the first has to be rotated back
+                pnt0[i] = new System.Drawing.Point((int)p.x, (int)p.y);
+            }
+            dtr(gfx, img, pnt0, deg, or, zoom);
+        }
+        /// <summary>Draws a textured polygon. The texture is drawn according to the rotation and position of the camera. Use larger images for textures with caution, System.Drawing is not too good at handling larger images.</summary>
+        /// <param name="gfx">Graphics to draw with</param>
+        /// <param name="img">Image to fill polygon with</param>
+        /// <param name="pnt">The points forming the polygon</param>
+        /// <param name="deg">Rotation of the screen</param>
+        /// <param name="or">Upper left corner of the polygon, in which the polygon can fit, if the screen is not rotated</param>
+        public static void drawTexturedRectangle(System.Drawing.Graphics gfx, System.Drawing.Bitmap img, Point[] pnt, double deg, Point or, double zoom)
+        {
+            System.Drawing.Point[] pnt0 = new System.Drawing.Point[pnt.Count()];
+            for (int i = 0; i < pnt.Count(); i++)
+            {
+                Point p = ((Point)pnt[i]).rotated(deg * (-1), (DoublePair)or);
+                pnt0[i] = new System.Drawing.Point((int)p.x, (int)p.y);
+            }
+            dtr(gfx, img, pnt0, deg, or, zoom);
+        }
+        public static void drawTexturedRectangle(
+            System.Drawing.Graphics gfx,
+            System.Drawing.Bitmap img,
+            System.Drawing.Color fillColor,
+            Line[] side,
+            Plane plane)
+        {
+            //building polygon
+            int x = (int)side[0].start.x;//upper left corner of the rectangle fitting the polygon
+            int y = (int)side[0].start.y;
+            System.Drawing.Point[] point = new System.Drawing.Point[side.Count()];
+            for (int i = 0; i < side.Count(); i++)
+            {
+                if ((int)side[i].start.x < x) x = (int)side[i].start.x;
+                if ((int)side[i].start.y < y) y = (int)side[i].start.y;
+                IntPair pnt = new IntPair(side[i].start.intScrCoords(plane.basis));
+                point[i] = new System.Drawing.Point(pnt.a, pnt.b);
+            }
+            Point rp = new Point(x, y);
+            //drawing the polygon
+            if (!fillColor.Equals(System.Drawing.Color.Transparent))
+                gfx.FillPolygon(new System.Drawing.SolidBrush(fillColor), point);
+            if (img != null)
+            {
+                //rp = rp.dobulePlaneCoords(plane.basis);
+                //rp = rp.zoomedCoords(screen.center, plane.zoom);
+                DrawingAlgorithms.drawTexturedRectangle(gfx, img, point, plane.rotation, rp.doubleScrCoords(plane.basis), plane.zoom);
+            }
+        }
+    }
+    /// <summary> Class for all entites, which are going to block light. In development! </summary>
+    public class LightShape
+    {
+        public LightShape(DoublePair[] point, System.Drawing.Color color, double height, double transparancy)
+        {
+            pt = new List<Point>();
+            for (int i = 0; i < point.Count(); i++)
+                pt.Add(point[i]);
+            tr = transparancy;
+            ht = height;
+            clr = color;
+        }
+        private List<Point> pt;
+        public List<Point> point { get { return pt; } set { pt = value; } }
+        public Line shadowCastingLine(Point lightSource)
+        {
+            return ShadowAlgorithms.shadowCastingLine(lightSource, this);
+        }
+        private System.Drawing.Color clr;
+        public System.Drawing.Color color { get { return clr; } set { clr = value; } }
+        private double tr;
+        public double transparancy { get { return tr; } set { tr = value; } }
+        private double ht;
+        public double height { get { return ht; } set { ht = value; } }
+    }
+    public class Light
+    {
+        private Point p;
+        public Point point { get { return p; } set { p = value; } }
+        private int rad;
+        public int radius { get { return rad; } set { rad = value; } }
+        private System.Drawing.Color clr;
+        public System.Drawing.Color color { get { return clr; } set { clr = value; } }
+    }
+    public static class ShadowAlgorithms
+    {
+        /// <summary> Returns the line which casts the same shadow which the shape would. Requires speed improving.</summary>
+        /// <param name="lightSource">The point from where the light comes from</param>
+        /// <param name="ls">The object implementing the LightShape interface</param>
+        /// <returns>The line which casts the same shadow which the shape would.</returns>
+        public static Line shadowCastingLine(Point lightSource, LightShape ls)
+        {
+            Point st = ls.point[0];
+            Point en = ls.point[0];
+            for (int i = 1; i < ls.point.Count; i++)
+            {//seraching for the two lines, for which all points are on the one side of each ray (or the two rays, between which all points are located)
+                Line ln1 = new Line(lightSource, st);
+                Line ln2 = new Line(lightSource, en);
+                if (ln1.isPointInner(ls.point[i])) st = ls.point[i];
+                if (ln2.isPointInner(ls.point[i]) == false) en = ls.point[i];
+            }
+            return new Line(st, en);
         }
     }
 }
@@ -952,6 +1230,23 @@ namespace VBLEDrawing
     have a really heavy effect on the projecting of the entities on the screen. However, it should not cause bugs. I have
     implemented an option to add diversions for the basis vectors, that would have the same effect on the program as removing
     the divisions. Why not just remove the divisions? I think this way I and you can have easier control over the program.*/
+
+/*LARGE COMMENT #2
+    Because of how drawing of an image starts from a specific point on the screen, a displaced image must be created. This
+    image is then used to fill the polygon. The coordinates of the point, from where the drawing starts, determine the
+    displacement of the image. However, the pane might be zoomed in/out, which changes the coordinates of the point and thus
+    how much the image needs to be displaced.
+    Lets assume, that the zoomed image requires to be displaced. For that the size of the zoomed image is needed. With it the
+    dislplacement of the zoomed image is calculated:
+    ziw - zoomed width;
+    zih - zoomed height;
+    p - coordinates of the origin;
+    ziw % p.x - displacement on X;
+    zih & p.y - displacement on Y;
+    But because the image is zoomed, the displacement of the original image will be
+    (ziw % p.x) / zoom;
+    (zih & p.y) / zoom;
+ */
 
 //double resx = -1;
 //double resy = -1;
@@ -1102,4 +1397,60 @@ namespace VBLEDrawing
 //    double resY = (-1) * lnB[2] / lnB[1];
 //    if (lnA[0] == 0.0 || lnB[1] == 0.0) { int k = 0; }//for debugging
 //    return new Point(resX, resY);
+//}
+
+/*
+        /// <summary> Draw a specified potion of the image on a specified location. Maintains the original size of the porion.</summary>
+        /// <param name="gfx">Graphics</param>
+        /// <param name="img">Image</param>
+        /// <param name="px">X coordinate of the upper left corner of the portion relative to the image</param>
+        /// <param name="py">Y coordinate of the upper left corner of the portion relative to the image</param>
+        /// <param name="width">Width of the portion</param>
+        /// <param name="height">Height of the portion</param>
+        /// <param name="cx">X coordinate where to draw the portion</param>
+        /// <param name="cy">Y coordinate where to draw the portion</param>
+        public static void drawPortionOfImage(
+            System.Drawing.Graphics gfx,
+            System.Drawing.Bitmap img,
+            int px, int py, int width, int height,
+            int cx, int cy, int cw, int ch)
+        {
+            drawPortionOfImage(gfx, img, new System.Drawing.Rectangle(px, py, width, height), new System.Drawing.Rectangle(cx, cy, cw, ch));
+        }
+        /// <summary> Draw a specified potion of the image on a specified location. Maintains the original size of the porion.</summary>
+        /// <param name="gfx">Graphics</param>
+        /// <param name="img">Image</param>
+        /// <param name="portion">Rectangle of the portion of the image to draw</param>
+        /// <param name="cx">X coordinate where to draw the portion</param>
+        /// <param name="cy">Y coordinate where to draw the portion</param>
+        public static void drawPortionOfImage(
+            System.Drawing.Graphics gfx,
+            System.Drawing.Bitmap img,
+            System.Drawing.Rectangle portion,
+            System.Drawing.Rectangle porRect)
+        {
+            System.Drawing.Rectangle r = new System.Drawing.Rectangle(porRect.X, porRect.Y, portion.Width, portion.Height);
+            gfx.DrawImage(img, r, porRect.X, porRect.Y, porRect.Width, porRect.Height, System.Drawing.GraphicsUnit.Pixel);
+        }
+        */
+//cycle for finding the shadow casting line - has an error and scans the points of the polygon twice
+//Line ln = new Line(ls.point[i], lightSource);//first potential line
+//bool inner;//are points going to be innter or outer
+//int ci;//if the i counter is zero, then the first checked point will be the 1st, so scanning of the other poitns will start from the 2nd point
+//if (i != 0) { inner = ln.isPointInner(ls.point[0]); ci = 1; }//on which side is the zero point located
+//else { inner = ln.isPointInner(ls.point[1]); ci = 2; }//if the zero point is the end of the current potential line, then check the 1st point on which side is located
+//bool all = true;//are all points on the same side
+//for (int c = ci; c < ls.point.Count; c++) 
+//    if (c != i) 
+//        if (ln.isPointInner(ls.point[c]) != inner)//if there is a point on the other side of the line, this line is not needed
+//        {
+//            all = false;
+//            break;
+//        }
+//if (all)
+//{
+//    if (st == null)//set the one end of the shadow line
+//        st = ls.point[i];
+//    else//set the second end
+//        en = ls.point[i];
 //}

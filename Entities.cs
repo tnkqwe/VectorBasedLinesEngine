@@ -43,6 +43,7 @@ namespace VectorBasedLinesEngine
         }
         //Drawable interface
         private BasicDrawableData bdd;
+        public LightShape lightShape { get { return null; } set { } }
         public string drawableType { get { return "PointEntity"; } }
         public int drawableTypeAsInt { get { return 1; } }
         private bool isInScreen(int x, int y, ScreenData screen)
@@ -50,9 +51,21 @@ namespace VectorBasedLinesEngine
             lock (_image)
                 if (_image != null)
                 {
-                    if (x >= 0 - _image.Width / 2 && x < screen.width + _image.Width / 2 &&
-                        y >= 0 - _image.Height / 2 && y < screen.height + _image.Height / 2)
-                        return true;
+                    int ziw = (int)(_image.Width * bdd.plane.zoom);
+                    int zih = (int)(_image.Height * bdd.plane.zoom);
+                    if (!rotating)
+                    {
+                        if (x >= 0 - ziw / 2 && x < screen.width + ziw / 2 &&
+                            y >= 0 - zih / 2 && y < screen.height + zih / 2)
+                            return true;
+                    }
+                    else
+                    {
+                        int hfdi = (int)Math.Sqrt(Math.Pow(ziw, 2) + Math.Pow(zih, 2));
+                        if (x >= 0 - hfdi / 2 && x < screen.width + hfdi / 2 &&
+                            y >= 0 - hfdi / 2 && y < screen.height + hfdi / 2)
+                            return true;
+                    }
                 }
                 else
                     return screen.isPointInside(_coords);
@@ -61,20 +74,33 @@ namespace VectorBasedLinesEngine
         public void draw(System.Drawing.Graphics gfx, ScreenData screen)
         {
             IntPair res = _coords.intScrCoords(bdd.plane.basis);
+            //IntPair res0 = _coords.intScrCoords(bdd.plane.basis, true, true, false);
             System.Drawing.Bitmap img = _image;
-            if (disp.a % _image.Width != 0 && disp.b % _image.Height != 0)
-                img = DrawingAlgorithms.displacedImage(img, disp.a, disp.b);
-            if (rotating)
-                img = DrawingAlgorithms.rotatedImage(img, bdd.plane.rotation, false);
-            lock (_image)
-                if (isInScreen(res.a, res.b, screen))
-                    if (_image != null)
-                        gfx.DrawImage(img,
-                            res.a - img.Width / 2,
-                            res.b - img.Height / 2,
-                            img.Width, img.Height);//plus half of the height and width of the image to place the point in the center of the image
+            if (isInScreen(res.a, res.b, screen))
+                if (_image != null)
+                {
+                    if (disp.a % img.Width != 0 && disp.b % img.Height != 0)
+                    {
+                        if (rotating)
+                            DrawingAlgorithms.drawRotDispImage(gfx, img,
+                                res.a, res.b, disp.a, disp.b,
+                                bdd.plane.rotation, 1, false);
+                        else
+                        {
+                            DrawingAlgorithms.drawDisplacedImage(gfx, img,
+                                res.a, res.b, disp.a, disp.b, plane.zoom);
+                            //gfx.DrawImage(DrawingAlgorithms.displacedImage(img, disp, plane.zoom), res.a - (int)(img.Width * plane.zoom / 2), res.b - (int)(img.Height * plane.zoom / 2));
+                        }
+                    }
+                    else if (rotating)
+                        DrawingAlgorithms.drawImage(gfx, img,
+                            res.a, res.b,
+                            bdd.plane.rotation, plane.zoom, false);
                     else
-                        gfx.DrawLine(new System.Drawing.Pen(_color), res, new System.Drawing.Point(res.a + 1, res.b + 1));
+                        DrawingAlgorithms.drawImage(gfx, img, res.a, res.b, 0, plane.zoom, false);
+                }
+                else
+                    gfx.DrawLine(new System.Drawing.Pen(_color), res, new System.Drawing.Point(res.a + 1, res.b + 1));
             prevImg = img;
         }
         public void drawInfo(System.Drawing.Graphics gfx, ScreenData screen)
@@ -106,6 +132,7 @@ namespace VectorBasedLinesEngine
         public IntPair[] section { get { return bdd.section; } }//located in these sections; will be used when objects move
         public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }//if the entity has moved
         public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        //public bool drawn { get { return bdd.drawn; } set { bdd.drawn = value; } }
         public IntPair[] calcOccupiedSects()
         {
             bdd.section = SectionAlgorithms.point(_coords, _image, bdd.plane.sectorSize, true, 1.0);
@@ -221,12 +248,13 @@ namespace VectorBasedLinesEngine
         }
         //Drawable interface
         private BasicDrawableData bdd;
+        public LightShape lightShape { get { return null; } set { } }
         public string drawableType { get { return "LineEntity"; } }
         public int drawableTypeAsInt { get { return 2; } }
         public bool isInScreen(Basis basis, ScreenData screen)
         {
-            Point scrSt0 = new Point(ln.start.doubleScrCoords(basis, true, true));// scrSt0 = scrSt0.zoomedCoords(screen.center, plane.zoom);
-            Point scrEn0 = new Point(ln.end.doubleScrCoords(basis, true, true));//   scrEn0 = scrEn0.zoomedCoords(screen.center, plane.zoom);
+            Point scrSt0 = new Point(ln.start.doubleScrCoords(basis, true, true, true));// scrSt0 = scrSt0.zoomedCoords(screen.center, plane.zoom);
+            Point scrEn0 = new Point(ln.end.doubleScrCoords(basis, true, true, true));//   scrEn0 = scrEn0.zoomedCoords(screen.center, plane.zoom);
             IntPair scrSt = new IntPair(Math.Round(scrSt0.x), Math.Round(scrSt0.y));
             IntPair scrEn = new IntPair(Math.Round(scrEn0.x), Math.Round(scrEn0.y));
             if ((scrSt.a >= 0 && scrSt.a <= screen.width && scrSt.b >= 0 && scrSt.b <= screen.height) ||
@@ -248,11 +276,28 @@ namespace VectorBasedLinesEngine
             if (isInScreen(bdd.plane.basis, screen) && _color != null)
             {
                 System.Drawing.Pen pen = new System.Drawing.Pen(_color);
-                DoublePair st = ln.start.doubleScrCoords(bdd.plane.basis, true, true);
-                DoublePair en = ln.end.doubleScrCoords(bdd.plane.basis, true, true);
-                //Line temp = new Line(st, en);
-                //temp = temp.lineToDraw(bdd.plane.basis, screen);
-                gfx.DrawLine(pen, st, en);
+                DoublePair st = ln.start.doubleScrCoords(bdd.plane.basis, true, true, true);
+                DoublePair en = ln.end.doubleScrCoords(bdd.plane.basis, true, true, true);
+                Line temp = new Line(st, en);//draw only the part of the line which is visible
+                temp = temp.lineToDraw(bdd.plane.basis, screen);
+                if (temp != null)
+                gfx.DrawLine(pen, temp.start, temp.end);
+                //gfx.DrawLine(pen, st, en);
+                if (bdd.plane.pseudo3D)
+                {
+                    int ht = (int)(40 * bdd.plane.zoom);
+                    System.Drawing.Point[] pa = new System.Drawing.Point[4];
+                    pa[0] = new System.Drawing.Point((int)st.a, (int)st.b);
+                    pa[1] = new System.Drawing.Point((int)en.a, (int)en.b);
+                    pa[2] = new System.Drawing.Point((int)en.a, (int)en.b - ht);
+                    pa[3] = new System.Drawing.Point((int)st.a, (int)st.b - ht);
+                    System.Drawing.SolidBrush sb = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(100, 255, 255, 255));
+                    gfx.FillPolygon(sb, pa);
+                    gfx.DrawPolygon(pen, pa);
+                }
+                //gfx.DrawLine(pen, (int)st.a, (int)st.b, (int)st.a, (int)st.b - ht);
+                //gfx.DrawLine(pen, (int)en.a, (int)en.b, (int)en.a, (int)en.b - ht);
+                //gfx.DrawLine(pen, (int)st.a, (int)st.b - ht, (int)en.a, (int)en.b - ht);
             }
         }
         public void drawInfo(System.Drawing.Graphics gfx, ScreenData screen)
@@ -279,6 +324,7 @@ namespace VectorBasedLinesEngine
         public IntPair[] section { get { return bdd.section; } }//located in these sections; will be used when objects move
         public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }//if the entity has moved
         public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        public bool drawn { get { return bdd.drawn; } set { bdd.drawn = value; } }
         public IntPair[] calcOccupiedSects()
         {
             bdd.section = SectionAlgorithms.line(ln, bdd.plane.sectorSize);
@@ -353,6 +399,7 @@ namespace VectorBasedLinesEngine
         private string imgDir; public string imageLocation { get { return string.Copy(imgDir); } }
         //Drawable interface
         private BasicDrawableData bdd;
+        public LightShape lightShape { get { return null; } set { } }
         public string drawableType { get { return "PolygonEntity"; } }
         public int drawableTypeAsInt { get { return 3; } }
         private void drawOutlines(System.Drawing.Graphics gfx, Basis basis, ScreenData screen)
@@ -366,32 +413,28 @@ namespace VectorBasedLinesEngine
             if (_filled)
             {
                 //building polygon
+                int x = (int)_side[0].start.x;//upper left corner of the rectangle fitting the polygon
+                int y = (int)_side[0].start.y;
                 System.Drawing.Point[] point = new System.Drawing.Point[_side.Count()];
-                for (int i = 0; i < _side.Count() - 1; i++)
+                for (int i = 0; i < _side.Count(); i++)
                 {
+                    if ((int)_side[i].start.x < x) x = (int)_side[i].start.x;
+                    if ((int)_side[i].start.y < y) y = (int)_side[i].start.y;
                     IntPair pnt = new IntPair(_side[i].start.intScrCoords(bdd.plane.basis));
                     point[i] = new System.Drawing.Point(pnt.a, pnt.b);
                 }
-                IntPair pnt0 = new IntPair(_side[_side.Count() - 1].start.intScrCoords(bdd.plane.basis));
-                point[_side.Count() - 1] = new System.Drawing.Point(pnt0.a, pnt0.b);
+                Point rp = new Point(x, y);
                 //drawing the polygon
                 if (fillClrSet)
                     gfx.FillPolygon(new System.Drawing.SolidBrush(_fillColor), point);
-                else if (imageSet)
+                if (imageSet)
                 {
-                    System.Drawing.Bitmap img = DrawingAlgorithms.displacedImage(
-                        _image,
-                        (int)bdd.plane.basis.center.x % _image.Width,
-                        (int)bdd.plane.basis.center.y % _image.Height);
-                    img = DrawingAlgorithms.tiledImage(img, 200, 200);
-                    img = DrawingAlgorithms.rotatedImage(img, plane.rotation, false);
-                    System.Drawing.TextureBrush tb = new System.Drawing.TextureBrush(img);
-                    drawOutlines(gfx, bdd.plane.basis, screen);
-                    gfx.FillPolygon(tb, point);
+                    //rp = rp.dobulePlaneCoords(plane.basis);
+                    //rp = rp.zoomedCoords(screen.center, plane.zoom);
+                    DrawingAlgorithms.drawTexturedRectangle(gfx, _image, point, plane.rotation, rp.doubleScrCoords(plane.basis), plane.zoom);
                 }
             }
-            else
-                drawOutlines(gfx, bdd.plane.basis, screen);
+            drawOutlines(gfx, bdd.plane.basis, screen);
         }
         public void drawInfo(System.Drawing.Graphics gfx, ScreenData screen)
         {
@@ -402,7 +445,8 @@ namespace VectorBasedLinesEngine
         public IntPair[] section { get { return bdd.section; } }//located in these sections; will be used when objects move
         public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }//if the entity has moved
         public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
-        protected Line[] sidesAsLine()
+        public bool drawn { get { return bdd.drawn; } set { bdd.drawn = value; } }
+        public Line[] sidesAsLine()
         {
             Line[] res = new Line[_side.Count()];
             for (int i = 0; i < _side.Count(); i++)
@@ -577,6 +621,130 @@ namespace VectorBasedLinesEngine
             }
         }
         private LineEntity[] _side;//for adding and removing sides I may need to use a data structure, for now I will leave it like that
+    }
+    public class CrossingLines : Entity, Drawable//for testing the crossing lines algorithm
+    {
+        private LineEntity le1;
+        private LineEntity le2;
+        private System.Drawing.Color clr;
+        public CrossingLines(string image, Point e1, Point s1, Point e2, Point s2, Plane plane)
+        {
+            bdd = new BasicDrawableData();
+            bdd.plane = plane;
+            clr = System.Drawing.Color.DarkCyan;
+            le1 = new LineEntity(clr, s1.x, s1.y, e1.x, e1.y, plane);
+            le2 = new LineEntity(clr, s2.x, s2.y, e2.x, e2.y, plane);
+            bdd.addImage(image);
+        }
+        //Entity overrides
+        public override void copy(Entity e)
+        {
+            throw new NotImplementedException();
+        }
+        public override string dataString()
+        {
+            throw new NotImplementedException();
+        }
+        public override string getInfo()
+        {
+            throw new NotImplementedException();
+        }
+        //Drawable interface
+        private BasicDrawableData bdd;
+        public LightShape lightShape { get { return null; } set { } }
+        public int drawableTypeAsInt { get { return 4; } }
+        public string drawableType { get { return "CrossingLinesEntity"; } }
+        public Plane plane { get { return bdd.plane; } }
+        public IntPair[] section { get { return bdd.section; } }
+        public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }
+        public void drawInfo(System.Drawing.Graphics gfx, ScreenData screen)
+        {
+            le1.drawInfo(gfx, screen);
+            le2.drawInfo(gfx, screen);
+        }
+        public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        public void draw(System.Drawing.Graphics gfx, ScreenData screen)
+        {
+            le1.draw(gfx, screen);
+            le2.draw(gfx, screen);
+            Point crs = le1.lineCoords.crossingPoint(le2.lineCoords);
+            if (crs != null)
+            {
+                crs = crs.intScrCoords(bdd.plane.basis);
+                DrawingAlgorithms.drawImage(gfx, bdd.imgFromIndex(0), (int)crs.x, (int)crs.y, 0, 1, false);
+            }
+        }
+        public IntPair[] calcOccupiedSects()
+        {
+            le1.calcOccupiedSects();
+            le2.calcOccupiedSects();
+            SortedSet<IntPair> s = new SortedSet<IntPair>();
+            for (int i = 0; i < le1.section.Count(); i++)
+                s.Add(le1.section[i]);
+            for (int i = 0; i < le2.section.Count(); i++)
+                s.Add(le2.section[i]);
+            bdd.section = s.ToArray<IntPair>();
+            return bdd.section;
+        }
+        public void reCalcSects()
+        {
+            bdd.section = calcOccupiedSects();
+        }
+        public void addImage(string imgDir) { bdd.addImage(imgDir); }
+        public void changeImage(int index, string imgDir) { bdd.changeImage(index, imgDir); }
+        public void removeImage(int index) { bdd.removeImage(index); }
+    }
+    public class ShadowEntity : Entity, Drawable
+    {
+        //Class specific
+        private PolygonEntity pe;
+        public ShadowEntity(DoublePair[] point, Plane plane)
+        {
+            ls = new LightShape(point, System.Drawing.Color.Yellow, 1, 1);
+            pe = new PolygonEntity(point, plane);
+            bdd = new BasicDrawableData();
+            bdd.plane = plane;
+        }
+        //Entity overrides
+        public override void copy(Entity e)
+        {
+            throw new NotImplementedException();
+        }
+        public override string dataString()
+        {
+            throw new NotImplementedException();
+        }
+        public override string getInfo()
+        {
+            throw new NotImplementedException();
+        }
+        //Drawable interface
+        private BasicDrawableData bdd;
+        private LightShape ls;
+        public LightShape lightShape { get { return ls; } set { ls = value; } }
+        public int drawableTypeAsInt { get { return 5; } }
+        public string drawableType { get { return "ShadowEntity"; } }
+        public Plane plane { get { return bdd.plane; } }
+        public IntPair[] section { get { return bdd.section; } }
+        public bool moved { get { return bdd.moved; } set { bdd.moved = value; } }
+        public void drawInfo(System.Drawing.Graphics gfx, ScreenData screen) { }
+        public int indexInPlane { get { return bdd.indexInPlane; } set { bdd.indexInPlane = value; } }
+        public void draw(System.Drawing.Graphics gfx, ScreenData screen)
+        {
+            pe.draw(gfx, screen);
+        }
+        public IntPair[] calcOccupiedSects()
+        {
+            bdd.section = SectionAlgorithms.polygon(pe.sidesAsLine(), false, bdd.plane.sectorSize);
+            return bdd.section;
+        }
+        public void reCalcSects()
+        {
+            bdd.section = calcOccupiedSects();
+        }
+        public void addImage(string imgDir) { bdd.addImage(imgDir); }
+        public void changeImage(int index, string imgDir) { bdd.changeImage(index, imgDir); }
+        public void removeImage(int index) { bdd.removeImage(index); }
     }
 }
 

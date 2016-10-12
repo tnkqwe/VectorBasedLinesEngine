@@ -6,14 +6,10 @@ using System.Threading;
 
 namespace BaseObject
 {
-    /// <summary>
-    /// Delegate for methods to add to entites. The entity in the arguments can be any entity, but the main reason to use it is to have access to the plane and/or entity database, in which the entity belongs.
-    /// </summary>
+    /// <summary> Delegate for methods to add to entites. The entity in the arguments can be any entity, but the main reason to use it is to have access to the plane and/or entity database, in which the entity belongs.</summary>
     /// <param name="e">Desired entity</param>
     public delegate void Action(Entity e);//in case you want to do some fancy stuff; yes the action can also have an effect on other entites
-    /// <summary>
-    /// Basic entity. All classes for making entities must be derived from this class, if you want ti to work with EntityDatabase objects. But if you are not going to use this class, why are you even using this library?
-    /// </summary>
+    /// <summary> Basic entity. All classes for making entities must be derived from this class, if you want ti to work with EntityDatabase objects. But if you are not going to use this class, why are you even using this library?</summary>
     public abstract class Entity//generic entity, based on that you should be able to build points, lines, polygons or other stuff
     {
         public Action method;//the method, that is going to do fancy stuff
@@ -59,9 +55,7 @@ namespace BaseObject
         public abstract string dataString();
         public abstract void copy(Entity e);//copies the properties of the argument entity
     }
-    /// <summary>
-    /// Use objects of this class to store entities, release their AutoResetEvent blocks and stop their threads. Added for convenience.
-    /// </summary>
+    /// <summary> Use objects of this class to store entities, release their AutoResetEvent blocks and stop their threads. Added for convenience. </summary>
     public class EntityDatabase
     {
         private List<Entity> ent;

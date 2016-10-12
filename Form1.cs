@@ -23,7 +23,7 @@ namespace VectorBasedLinesEngine
         int scrWidth;
         int heightParts = 9;//use to set the aspect ratio accurately
         int widthParts = 16;//it is also used when resizing the window
-        int pixelsPerPart = 40;
+        int pixelsPerPart = 30;
         System.Diagnostics.Stopwatch timer;
         EntityDatabase ed;
         List<System.Threading.AutoResetEvent> entBlock;
@@ -45,8 +45,8 @@ namespace VectorBasedLinesEngine
             timer = new System.Diagnostics.Stopwatch();
             planeMoveBlock = new System.Threading.AutoResetEvent(false);
             plane = new Plane(5, 5, scrWidth, scrHeight, fancyCameraMovementMethod, planeMoveBlock);
-            plane.addMethodToHart(fancyTestMethod0);
-            plane.addMethodToHart(fancyTestMethod1);
+            //plane.addMethodToHart(fancyTestMethod0);
+            //plane.addMethodToHart(fancyTestMethod1);
             using (StreamWriter file = new StreamWriter(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
             {//encoding the entity data
                 file.WriteLine("This is an example for an entities data file.");
@@ -89,7 +89,7 @@ namespace VectorBasedLinesEngine
                 clr[1] = System.Drawing.Color.MediumAquamarine;
                 clr[2] = System.Drawing.Color.LimeGreen;
                 clr[3] = System.Drawing.Color.Yellow;
-                PolygonEntity ple = new PolygonEntity(dp, clr, @"\data\images\randTexture.png", plane);
+                PolygonEntity ple = new PolygonEntity(dp, clr, @"\data\images\whiteTexture.png", plane);
                 file.WriteLine(ple.dataString());
             }
             using (StreamReader file = new StreamReader(Directory.GetCurrentDirectory() + @"\data\entities.ed"))
@@ -104,7 +104,7 @@ namespace VectorBasedLinesEngine
                         {
                             PointEntity pe = new PointEntity(crrLine, plane);
                             if (pi % 2 == 1) pe.rotating = true;
-                            if (pi % 3 == 0) pe.disp = new IntPair(10, 15);
+                            if (pi % 3 == 0) pe.disp = new IntPair(25, 25);
                             plane.addEntity(pe);
                             pi++;
                         }
@@ -114,6 +114,44 @@ namespace VectorBasedLinesEngine
                     crrLine = file.ReadLine();
                 }
             }
+            CrossingLines cl1 = new CrossingLines(@"\data\images\blueStar.png",
+                new VBLEDrawing.Point(50, 50),
+                new VBLEDrawing.Point(200, 200),
+                new VBLEDrawing.Point(50, 200),
+                new VBLEDrawing.Point(200, 50),
+                plane);
+            plane.addEntity(cl1);
+            CrossingLines cl2 = new CrossingLines(@"\data\images\blueStar.png",
+                new VBLEDrawing.Point(0, 0),
+                new VBLEDrawing.Point(0, 200),
+                new VBLEDrawing.Point(-40, 100),
+                new VBLEDrawing.Point(50, 100),
+                plane);
+            plane.addEntity(cl2);
+            VBLEDrawing.DoublePair[] pnt1 = new VBLEDrawing.DoublePair[7];
+            int pts = 20;
+            pnt1[0] = new VBLEDrawing.DoublePair(2 * pts, 1 * pts);
+            pnt1[1] = new VBLEDrawing.DoublePair(3 * pts, 1 * pts);
+            pnt1[2] = new VBLEDrawing.DoublePair(5 * pts, 2 * pts);
+            pnt1[3] = new VBLEDrawing.DoublePair(5 * pts, 3 * pts);
+            pnt1[4] = new VBLEDrawing.DoublePair(4 * pts, 4 * pts);
+            pnt1[5] = new VBLEDrawing.DoublePair(2 * pts, 4 * pts);
+            pnt1[6] = new VBLEDrawing.DoublePair(1 * pts, 2 * pts);
+            ShadowEntity se1 = new ShadowEntity(pnt1, plane);
+            plane.addEntity(se1);
+            VBLEDrawing.DoublePair[] pnt2 = new VBLEDrawing.DoublePair[9];
+            int dst = 200;
+            pnt2[0] = new VBLEDrawing.DoublePair(1 * pts + dst, 1 * pts);
+            pnt2[1] = new VBLEDrawing.DoublePair(3 * pts + dst, 1 * pts);
+            pnt2[2] = new VBLEDrawing.DoublePair(3 * pts + dst, 2 * pts);
+            pnt2[3] = new VBLEDrawing.DoublePair(4 * pts + dst, 3 * pts);
+            pnt2[4] = new VBLEDrawing.DoublePair(4 * pts + dst, 5 * pts);
+            pnt2[5] = new VBLEDrawing.DoublePair(3 * pts + dst, 5 * pts);
+            pnt2[6] = new VBLEDrawing.DoublePair(2 * pts + dst, 4 * pts);
+            pnt2[7] = new VBLEDrawing.DoublePair(2 * pts + dst, 3 * pts);
+            pnt2[8] = new VBLEDrawing.DoublePair(1 * pts + dst, 2 * pts);
+            ShadowEntity se2 = new ShadowEntity(pnt2, plane);
+            plane.addEntity(se2);
             ed = new EntityDatabase();
             entBlock = new List<System.Threading.AutoResetEvent>();
             //entBlock.Add(new System.Threading.AutoResetEvent(false));
@@ -239,40 +277,43 @@ namespace VectorBasedLinesEngine
         DoublePair divSpY = new DoublePair (0.0002, 0.0002);
         private void fancyTestMethod0(Plane plane)
         {
-            //if (plane.centerDiversion.a >= maxCDiv.a || plane.centerDiversion.a <= minCDiv.a)
-            //    divSpC.a = (-1) * divSpC.a;
-            //if (plane.centerDiversion.b >= maxCDiv.b || plane.centerDiversion.b <= minCDiv.b)
-            //    divSpC.b = (-1) * divSpC.b;
-            //plane.centerDiversionX += divSpC.a;
-            //plane.centerDiversionY += divSpC.b;
-            ////plane.centerDiversion = new DoublePair(plane.centerDiversion.a + divSpC.a, plane.centerDiversion.b + divSpC.b);
+            if (plane.centerDiversion.a >= maxCDiv.a || plane.centerDiversion.a <= minCDiv.a)
+                divSpC.a = (-1) * divSpC.a;
+            if (plane.centerDiversion.b >= maxCDiv.b || plane.centerDiversion.b <= minCDiv.b)
+                divSpC.b = (-1) * divSpC.b;
+            plane.centerDiversionX += divSpC.a;
+            plane.centerDiversionY += divSpC.b;
+            //plane.centerDiversion = new DoublePair(plane.centerDiversion.a + divSpC.a, plane.centerDiversion.b + divSpC.b);
 
-            //if (plane.xVectorDiversion.a >= maxXDiv.a || plane.xVectorDiversion.a <= minXDiv.a)
-            //    divSpX.a = (-1) * divSpX.a;
-            //if (plane.xVectorDiversion.b >= maxXDiv.b || plane.xVectorDiversion.b <= minXDiv.b)
-            //    divSpX.b = (-1) * divSpX.b;
-            //plane.xVectorDiversionX = divSpX.a;
-            //plane.xVectorDiversionY = divSpX.b;
-            ////plane.xVectorDiversion = new DoublePair(plane.xVectorDiversion.a + divSpX.a, plane.xVectorDiversion.b + divSpX.b);
+            if (plane.xVectorDiversion.a >= maxXDiv.a || plane.xVectorDiversion.a <= minXDiv.a)
+                divSpX.a = (-1) * divSpX.a;
+            if (plane.xVectorDiversion.b >= maxXDiv.b || plane.xVectorDiversion.b <= minXDiv.b)
+                divSpX.b = (-1) * divSpX.b;
+            plane.xVectorDiversionX = divSpX.a;
+            plane.xVectorDiversionY = divSpX.b;
+            //plane.xVectorDiversion = new DoublePair(plane.xVectorDiversion.a + divSpX.a, plane.xVectorDiversion.b + divSpX.b);
 
-            //if (plane.yVectorDiversion.a >= maxYDiv.a || plane.yVectorDiversion.a <= minYDiv.a)
-            //    divSpY.a = (-1) * divSpY.a;
-            //if (plane.yVectorDiversion.b >= maxYDiv.b || plane.yVectorDiversion.b <= minYDiv.b)
-            //    divSpY.b = (-1) * divSpY.b;
-            //plane.yVectorDiversionX += divSpY.a;
-            //plane.yVectorDiversionY += divSpY.b;
-            ////plane.yVectorDiversion = new DoublePair(plane.yVectorDiversion.a + divSpY.a, plane.yVectorDiversion.b + divSpY.b);
+            if (plane.yVectorDiversion.a >= maxYDiv.a || plane.yVectorDiversion.a <= minYDiv.a)
+                divSpY.a = (-1) * divSpY.a;
+            if (plane.yVectorDiversion.b >= maxYDiv.b || plane.yVectorDiversion.b <= minYDiv.b)
+                divSpY.b = (-1) * divSpY.b;
+            plane.yVectorDiversionX += divSpY.a;
+            plane.yVectorDiversionY += divSpY.b;
+            //plane.yVectorDiversion = new DoublePair(plane.yVectorDiversion.a + divSpY.a, plane.yVectorDiversion.b + divSpY.b);
         }
         int cycles = 0;
-        Entity[] ent = new Entity[5];
+        Entity[] ent = new Entity[21];
         private void fancyTestMethod1(Plane plane)
         {
-            if (cycles < 5)
-                ent[cycles] = plane.removeEntity(cycles + 5) as Entity;
-            if (cycles > 12)
-                plane.addEntity(ent[cycles % 5] as Drawable);
+            if (cycles < 21)
+            {
+                ent[cycles] = plane.removeEntity(cycles) as Entity;
+                ent[cycles].indexInDatabase = -1;
+            }
+            if (cycles > 83 && cycles < 105)
+                plane.addEntity(ent[cycles % 21] as Drawable);
             cycles++;
-            if (cycles >= 17) cycles = 0;
+            if (cycles > 200) cycles = 0;
         }
         int hor1 = -1;
         int ver1 = -1;

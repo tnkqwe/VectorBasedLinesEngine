@@ -13,11 +13,18 @@ namespace VBLEDrawing
         /// <param name="zoom">With zoom</param>
         /// <param name="rotation">With rotation</param>
         /// <returns></returns>
-        public Point centerCoordinates(bool diversion, bool zoom, bool rotation) { return getPntDat(c, divC, diversion, zoom, rotation); }
+        public Point centerCoordinates(bool diversion, bool zoom, bool rotation)
+        {
+            Point res = new Point(c);
+            if (zoom) { res = res.zoomedCoords(origin, _zoom); }
+            if (rotation) { res = rotatePoint(res.x, res.y, rot, (DoublePair)origin); }
+            if (diversion) { res.x += divC.a; res.y += divC.b; }
+            return res;
+        }
         /// <summary> Where is the center located. Equivalet to centerCoordinates(true, true, true)</summary>
-        public Point center { get { return centerCoordinates(true,  true,  true); } }
+        public Point center { get { return centerCoordinates(true, true, true); } }
         /// <summary> Where is the center located without calculating the zoom. Equivalet to centerCoordinates(true, false, true)</summary>
-        public Point centerNoZoom { get { return centerCoordinates(true,  false, true); } }
+        public Point centerNoZoom { get { return centerCoordinates(true, false, true); } }
         /// <summary> Where is the center located without calculating the diversion. Equivalent to centerCoordinates(false, true, true)</summary>
         public Point centerNoDiv { get { return centerCoordinates(false, true,  true); } }
         /// <summary> Where is the center located without calculating the rotation. Equivalent to centerCoordinates(true, true, false)</summary>
@@ -25,7 +32,19 @@ namespace VBLEDrawing
         /// <summary> Base coordinates of the center. </summary>
         public Point centerBaseVals { get { return new Point(c.a, c.b); } }
         private DoublePair x;
-        public Point xVectorCoordinates(bool diversion, bool zoom, bool rotation) { return getPntDat(x, divX, diversion, zoom, rotation); }
+        public Point xVectorCoordinates(bool diversion, bool zoom, bool rotation)
+        {
+            Point res = new Point(x);
+            if (zoom)
+            {
+                Point cent = centerCoordinates(false, true, false);
+                res.x = cent.x + 1;
+                res.y = cent.y;
+            }
+            if (rotation) { res = rotatePoint(res.x, res.y, rot, (DoublePair)origin); }
+            if (diversion) { res.x += divX.a; res.y += divX.b; }
+            return res;
+        }
         /// <summary> Where is the end of the X vector located. </summary>
         public Point xVector { get { return xVectorCoordinates(true, true, true); } }
         /// <summary> Where is the end of the X vector located without calculating the zoom. </summary>
@@ -37,7 +56,19 @@ namespace VBLEDrawing
         /// <summary> Base coordinates of the X vector.</summary>
         public Point xVectorBaseVals { get { return new Point(x.a, x.b); } }
         private DoublePair y;
-        public Point yVectorCoordinates(bool diversion, bool zoom, bool rotation) { return getPntDat(y, divY, diversion, zoom, rotation); }
+        public Point yVectorCoordinates(bool diversion, bool zoom, bool rotation)
+        {
+            Point res = new Point(y);
+            if (zoom)
+            {
+                Point cent = centerCoordinates(false, true, false);
+                res.x = cent.x;
+                res.y = cent.y + 1;
+            }
+            if (rotation) { res = rotatePoint(res.x, res.y, rot, (DoublePair)origin); }
+            if (diversion) { res.x += divY.a; res.y += divY.b; }
+            return res;
+        }
         /// <summary> Where is the end of the Y vector located.</summary>
         public Point yVector { get { return yVectorCoordinates(true, true, true); } }
         /// <summary> Where is the end of the Y vector located without calculating the zoom. </summary>
@@ -51,9 +82,9 @@ namespace VBLEDrawing
         private Point getPntDat(Point p, DoublePair div, bool dv, bool zm, bool rt)
         {
             Point res = new Point(p);
-            if (dv) { res.x += div.a; res.y += div.b; }
-            if (zm) { res.zoomedCoords(origin, _zoom); }
+            if (zm) { res = res.zoomedCoords(origin, _zoom); }
             if (rt) { res = rotatePoint(res.x, res.y, rot, (DoublePair)origin); }
+            if (dv) { res.x += div.a; res.y += div.b; }
             return res;
         }
         private ScreenData screen;
@@ -175,15 +206,15 @@ namespace VBLEDrawing
         {
             DoublePair s = new DoublePair(st);
             DoublePair e = new DoublePair(en);
+            if (zoom)
+            {//basis vectors are 1.0 by default
+                s.a = s.a / _zoom; s.b = s.b / _zoom;
+                e.a = e.a / _zoom; e.b = e.b / _zoom;
+            }
             if (div)
             {
                 s.a += divSt.a; s.b += divSt.b;
                 e.a += divEn.a; e.b += divEn.b;
-            }
-            if (zoom)
-            {
-                s.a = s.a / _zoom; s.b = s.b / _zoom;//after divisions to get 1px vector lengths when calculating the screen coordinates,
-                e.a = e.a / _zoom; e.b = e.b / _zoom;//the results get multiplied by the zoom or basisVectCoor / (basisVectLength / zoom) = (basisVectCoor / basisVectLength) * zoom
             }
             double res = System.Math.Sqrt(
                 System.Math.Pow(e.a - s.a, 2) +
